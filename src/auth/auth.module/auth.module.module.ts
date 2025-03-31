@@ -6,11 +6,14 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from '../auth.controller/auth.controller.controller';
 import { AuthService } from '../auth.service/auth.service.service';
 import { User, UserSchema } from '../auth.schema';
+import { NotificationsModule } from '../../notifications/notifications.module';
+
 
 @Module({
   imports: [
     ConfigModule, // Import ConfigModule
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
+    NotificationsModule, // Import NotificationModule
     JwtModule.registerAsync({
       imports: [ConfigModule], // Import ConfigModule
       inject: [ConfigService],
