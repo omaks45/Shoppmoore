@@ -18,7 +18,8 @@ import { PasswordUtils } from '../utils/password.util';
 import { JwtPayload } from '../utils/jwt-payload.interface';
 import { NotificationService } from '../../notifications/notifications.service';
 import { ApiTags } from '@nestjs/swagger';
-
+import { ResetPasswordDto } from '../dto/set-new-password.dto';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 
 @ApiTags('Authentication')
 @Injectable()
@@ -43,7 +44,6 @@ export class AuthService {
     }
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
-
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
 
     const newUser = new this.userModel({
@@ -57,8 +57,6 @@ export class AuthService {
     });
 
     await newUser.save();
-
-    // Send verification email
     await this.notificationService.sendVerificationEmail(email, verificationCode);
 
     return { message: 'Signup successful. Please verify your email.', newUser };
@@ -67,20 +65,19 @@ export class AuthService {
   /** Super Admin creates an Admin */
   async createAdmin(dto: CreateAdminDto, superAdminId: string): Promise<any> {
     const superAdmin = await this.userModel.findById(superAdminId);
-    // Check if the user is a Super Admin
     if (!superAdmin || superAdmin.role !== 'super-admin') {
       throw new ForbiddenException('Only Super Admins can create Admins');
     }
-  
+
     const { firstName, lastName, email, phoneNumber, password } = dto;
-  
+
     const existingUser = await this.userModel.findOne({ email });
     if (existingUser) {
       throw new BadRequestException('Email already in use');
     }
-  
+
     const hashedPassword = await PasswordUtils.hashPassword(password);
-  
+
     const newAdmin = new this.userModel({
       firstName,
       lastName,
@@ -90,13 +87,13 @@ export class AuthService {
       role: 'admin',
       createdBy: superAdminId,
     });
-  
+
     await newAdmin.save();
     await this.notificationService.sendAdminCreationEmail(email);
-  
+
     return { message: 'Admin created successfully', newAdmin };
   }
-  
+
   /** Login */
   async login(dto: LoginDto): Promise<any> {
     const { email, password } = dto;
@@ -129,5 +126,48 @@ export class AuthService {
   /** Logout user */
   async logout() {
     return { message: 'Logged out successfully' };
+  }
+
+  /** Request password reset (Step 1) */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<any> {
+    const { email } = dto;
+    const user = await this.userModel.findOne({ email });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const resetToken = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
+    const resetTokenExpiry = new Date();
+    resetTokenExpiry.setMinutes(resetTokenExpiry.getMinutes() + 5); // OTP expires in 5 minutes
+
+    user.passwordResetToken = resetToken;
+    user.passwordResetExpires = resetTokenExpiry;
+    await user.save();
+
+    await this.notificationService.sendPasswordResetEmail(email, resetToken);
+
+    return { message: 'Password reset OTP sent to email' };
+  }
+
+  /** Reset password (Step 2) */
+  async resetPassword(dto: ResetPasswordDto): Promise<any> {
+    const { email, otp, newPassword, confirmPassword } = dto;
+    const user = await this.userModel.findOne({ email });
+
+    if (!user || user.passwordResetToken !== otp || new Date() > user.passwordResetExpires) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    if (newPassword !== confirmPassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    user.password = await PasswordUtils.hashPassword(newPassword);
+    user.passwordResetToken = null;
+    user.passwordResetExpires = null;
+    await user.save();
+
+    return { message: 'Password reset successful' };
   }
 }

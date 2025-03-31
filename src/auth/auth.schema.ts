@@ -2,13 +2,11 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
-// Removed duplicate declaration of UserDocument
-
 enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
   BUYER = 'buyer',
-  SuperAdmin = 'super-admin',
+  SUPER_ADMIN = 'super-admin',
 }
 
 @Schema({ timestamps: true })
@@ -30,7 +28,6 @@ export class User {
 
   @Prop({ enum: UserRole, default: UserRole.USER })
   role: UserRole;
-  
 
   @Prop({ default: false })
   isVerified: boolean;
@@ -39,7 +36,10 @@ export class User {
   verificationCode?: string;
 
   @Prop()
-  resetPasswordToken?: string;
+  passwordResetToken?: string; 
+
+  @Prop()
+  passwordResetExpires?: Date; 
 
   @Prop({ type: Object })
   address?: {
@@ -51,6 +51,5 @@ export class User {
   };
 }
 
-//export const UserSchema = SchemaFactory.createForClass(User);
 export type UserDocument = User & Document;
 export const UserSchema = SchemaFactory.createForClass(User);
