@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
-  //ForbiddenException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -66,17 +66,21 @@ export class AuthService {
 
   /** Super Admin creates an Admin */
   async createAdmin(dto: CreateAdminDto, superAdminId: string): Promise<any> {
+    const superAdmin = await this.userModel.findById(superAdminId);
+    // Check if the user is a Super Admin
+    if (!superAdmin || superAdmin.role !== 'super-admin') {
+      throw new ForbiddenException('Only Super Admins can create Admins');
+    }
+  
     const { firstName, lastName, email, phoneNumber, password } = dto;
-
+  
     const existingUser = await this.userModel.findOne({ email });
     if (existingUser) {
       throw new BadRequestException('Email already in use');
     }
-
-    // Hash password
+  
     const hashedPassword = await PasswordUtils.hashPassword(password);
-
-    // Create new admin
+  
     const newAdmin = new this.userModel({
       firstName,
       lastName,
@@ -86,15 +90,13 @@ export class AuthService {
       role: 'admin',
       createdBy: superAdminId,
     });
-
+  
     await newAdmin.save();
-
-    // Send admin creation email
     await this.notificationService.sendAdminCreationEmail(email);
-
+  
     return { message: 'Admin created successfully', newAdmin };
   }
-
+  
   /** Login */
   async login(dto: LoginDto): Promise<any> {
     const { email, password } = dto;

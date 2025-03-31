@@ -8,6 +8,7 @@ enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
   BUYER = 'buyer',
+  SuperAdmin = 'super-admin',
 }
 
 @Schema({ timestamps: true })
