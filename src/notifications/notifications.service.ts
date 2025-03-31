@@ -40,4 +40,22 @@ export class NotificationService {
     const html = `<p>Your admin account has been successfully created.</p>`;
     await this.sendEmail(email, subject, '', html);
   }
+
+  /** Send password reset email */
+  async sendPasswordResetEmail(to: string, resetToken: string) {
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    const msg = {
+      to,
+      from: process.env.SENDGRID_FROM_EMAIL, // Set your verified sender email in .env
+      subject: 'Password Reset Request',
+      html: `
+        <p>You requested a password reset. Click the link below to reset your password:</p>
+        <a href="${resetLink}" target="_blank">Reset Password</a>
+        <p>If you didn't request this, you can safely ignore this email.</p>
+      `,
+    };
+
+    await sgMail.send(msg);
+  }
 }
