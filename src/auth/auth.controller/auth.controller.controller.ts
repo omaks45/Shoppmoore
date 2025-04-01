@@ -14,6 +14,8 @@ import { LoginDto } from '../dto/login.dto';
 import { AddressSetupDto } from '../dto/address-setup.dto';
 import { JwtAuthGuard } from '../auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ResetPasswordDto } from '../dto/set-new-password.dto';
 
 @ApiTags('Authentication') // Group authentication-related endpoints in Swagger
 @Controller('auth')
@@ -70,4 +72,21 @@ export class AuthController {
   async logout() {
     return this.authService.logout();
   }
+
+  @Post('forgot-password')
+  @ApiOperation({ summary: 'Request password reset (Step 1)' })
+  @ApiResponse({ status: 200, description: 'OTP sent to registered email' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto);
+  }
+
+  @Patch('reset-password')
+  @ApiOperation({ summary: 'Reset password (Step 2)' })
+  @ApiResponse({ status: 200, description: 'Password reset successful' })
+  @ApiResponse({ status: 400, description: 'Invalid or expired OTP / Passwords do not match' })
+  async resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
+  }
+
 }

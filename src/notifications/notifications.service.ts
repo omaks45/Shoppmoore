@@ -1,28 +1,36 @@
 /* eslint-disable prettier/prettier */
 import { Injectable } from '@nestjs/common';
-import * as sgMail from '@sendgrid/mail';
+import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class NotificationService {
+  private transporter;
+
   constructor() {
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY); // Set API Key
+    this.transporter = nodemailer.createTransport({
+      service: process.env.EMAIL_SERVICE, // Gmail
+      auth: {
+        user: process.env.EMAIL_USER, // Gmail address
+        pass: process.env.EMAIL_PASS, // App Password (not your Gmail password)
+      },
+    });
   }
 
-  /** Send email via SendGrid */
+  /** Send email via Gmail SMTP */
   async sendEmail(to: string, subject: string, text: string, html?: string) {
-    const msg = {
+    const mailOptions = {
+      from: process.env.EMAIL_USER, // Sender's Gmail
       to,
-      from: process.env.SENDGRID_FROM_EMAIL, // Verified sender email
       subject,
       text,
       html,
     };
 
     try {
-      await sgMail.send(msg);
-      console.log(`Email sent to ${to}`);
+      await this.transporter.sendMail(mailOptions);
+      console.log(`📧 Email sent to ${to}`);
     } catch (error) {
-      console.error('SendGrid Error:', error.response?.body || error);
+      console.error('❌ Email Error:', error);
       throw new Error('Failed to send email');
     }
   }
@@ -44,18 +52,13 @@ export class NotificationService {
   /** Send password reset email */
   async sendPasswordResetEmail(to: string, resetToken: string) {
     const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+    const subject = 'Password Reset Request';
+    const html = `
+      <p>You requested a password reset. Click the link below to reset your password:</p>
+      <a href="${resetLink}" target="_blank">Reset Password</a>
+      <p>If you didn't request this, you can safely ignore this email.</p>
+    `;
 
-    const msg = {
-      to,
-      from: process.env.SENDGRID_FROM_EMAIL, // Set your verified sender email in .env
-      subject: 'Password Reset Request',
-      html: `
-        <p>You requested a password reset. Click the link below to reset your password:</p>
-        <a href="${resetLink}" target="_blank">Reset Password</a>
-        <p>If you didn't request this, you can safely ignore this email.</p>
-      `,
-    };
-
-    await sgMail.send(msg);
+    await this.sendEmail(to, subject, '', html);
   }
 }
