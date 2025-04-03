@@ -15,8 +15,8 @@ export class ApiKeyGuard implements CanActivate {
 
     const expectedApiKey = this.configService.get<string>('ADMIN_CREATION_SECRET')?.trim();
 
-    console.log('Received API Key:', apiKey);
-    console.log('Expected API Key:', expectedApiKey);
+    //console.log('Received API Key:', apiKey);
+    //console.log('Expected API Key:', expectedApiKey);
 
     if (!apiKey || apiKey !== expectedApiKey) {
       throw new ForbiddenException('Invalid API key: You are not authorized to create an admin');
