@@ -1,17 +1,8 @@
 /* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, MinLength, Matches } from 'class-validator';
+import { IsNotEmpty, MinLength, Matches } from 'class-validator';
 
 export class ResetPasswordDto {
-  @ApiProperty({ description: 'Registered email address' })
-  @IsEmail()
-  @IsNotEmpty()
-  email: string;
-
-  @ApiProperty({ description: 'OTP sent to email' })
-  @IsNotEmpty()
-  otp: string;
-
   @ApiProperty({
     description: 'New password (Min 6 characters, must include uppercase, lowercase, number, and special character)',
     example: 'Password@123',

@@ -34,6 +34,10 @@ export class User {
 
   @Prop()
   verificationCode?: string;
+  
+  @Prop()
+  verificationCodeExpires?: Date;
+
 
   @Prop()
   passwordResetToken?: string; 

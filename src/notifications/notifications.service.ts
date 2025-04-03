@@ -51,14 +51,15 @@ export class NotificationService {
 
   /** Send password reset email */
   async sendPasswordResetEmail(to: string, resetToken: string) {
-    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-    const subject = 'Password Reset Request';
+    const subject = 'Password Reset OTP';
     const html = `
-      <p>You requested a password reset. Click the link below to reset your password:</p>
-      <a href="${resetLink}" target="_blank">Reset Password</a>
+      <p>You requested a password reset. Use the OTP below to reset your password:</p>
+      <h2 style="color: #333; text-align: center;">${resetToken}</h2>
+      <p>This OTP is valid for only 5 minutes.</p>
       <p>If you didn't request this, you can safely ignore this email.</p>
     `;
 
     await this.sendEmail(to, subject, '', html);
-  }
+}
+
 }

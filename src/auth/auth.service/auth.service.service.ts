@@ -24,6 +24,9 @@ import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { Redis } from 'ioredis';
 import { Request } from 'express';
+import { VerifyDto } from '../dto/verify.dto';
+import { ResendOtpDto } from '../dto/resend-otp.dto';
+import { VerifyResetOtpDto } from '../dto/verify-reset-otp.dto';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -63,6 +66,7 @@ export class AuthService implements OnModuleInit {
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000);
 
     const newUser = new this.userModel({
       firstName,
@@ -72,6 +76,7 @@ export class AuthService implements OnModuleInit {
       password: hashedPassword,
       role: 'buyer',
       verificationCode,
+      verificationCodeExpires,
     });
 
     await newUser.save();
@@ -177,24 +182,97 @@ export class AuthService implements OnModuleInit {
     return { message: 'Password reset OTP sent to email' };
   }
 
-  /** 🔹 Reset Password */
-  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    const { email, otp, newPassword, confirmPassword } = dto;
-    const user = await this.userModel.findOne({ email });
+  /** Reset Password (After OTP Verification) */
+async resetPassword(email: string, dto: ResetPasswordDto): Promise<{ message: string }> {
+  const { newPassword, confirmPassword } = dto;
 
+  // Find user by email
+  const user = await this.userModel.findOne({ email });
+
+  if (!user) {
+    throw new NotFoundException('User not found');
+  }
+
+  // Ensure passwords match
+  if (newPassword !== confirmPassword) {
+    throw new BadRequestException('Passwords do not match');
+  }
+
+  // Hash and save new password
+  user.password = await PasswordUtils.hashPassword(newPassword);
+  user.passwordResetToken = null; // Clear reset token
+  user.passwordResetExpires = null; // Clear expiration
+  await user.save();
+
+  return { message: 'Password reset successful' };
+}
+
+ 
+//** 🔹 Verify Password Reset OTP */
+  async verifyResetOtp(dto: VerifyResetOtpDto): Promise<{ message: string; email: string }> {
+    const { email, otp } = dto;
+    const user = await this.userModel.findOne({ email });
+  
     if (!user || user.passwordResetToken !== otp || new Date() > user.passwordResetExpires) {
       throw new BadRequestException('Invalid or expired OTP');
     }
-
-    if (newPassword !== confirmPassword) {
-      throw new BadRequestException('Passwords do not match');
-    }
-
-    user.password = await PasswordUtils.hashPassword(newPassword);
+  
+    // OTP is valid, clear it from the database
     user.passwordResetToken = null;
     user.passwordResetExpires = null;
     await user.save();
-
-    return { message: 'Password reset successful' };
+  
+    return { message: 'OTP is valid. Proceed to reset password', email };
   }
+  
+
+
+  /** 🔹 Verify User Email */
+  async verifyEmail(dto: VerifyDto): Promise<{ message: string }> {
+    const { email, verificationCode } = dto;
+    const user = await this.userModel.findOne({ email });
+  
+    if (!user) throw new NotFoundException('User not found');
+  
+    if (!user.verificationCode || user.verificationCode !== verificationCode) {
+      throw new BadRequestException('Invalid OTP');
+    }
+  
+    if (new Date() > user.verificationCodeExpires) {
+      throw new BadRequestException('OTP has expired. Please request a new one.');
+    }
+  
+    user.isVerified = true;
+    user.verificationCode = null;
+    user.verificationCodeExpires = null;
+    await user.save();
+  
+    return { message: 'Email verified successfully' };
+  }
+  
+  /** 🔹 Resend OTP */
+  async resendOtp(dto: ResendOtpDto): Promise<{ message: string }> {
+    const { email } = dto;
+    const user = await this.userModel.findOne({ email });
+  
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+  
+    if (user.isVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+  
+    // Generate new OTP
+    const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = newOtp;
+    user.verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
+    await user.save();
+  
+    // Send email notification
+    await this.notificationService.sendVerificationEmail(email, newOtp);
+  
+    return { message: 'New OTP sent to your email' };
+  }
+  
 }
