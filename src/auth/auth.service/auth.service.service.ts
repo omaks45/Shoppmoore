@@ -1,15 +1,17 @@
 /* eslint-disable prettier/prettier */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+/* eslint-disable prettier/prettier */
 import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
-  ForbiddenException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserDocument } from '../auth.schema';
+import { User, UserDocument, UserRole } from '../auth.schema';
 import { SignupDto } from '../dto/signup.dto';
 import { CreateAdminDto } from '../dto/create-admin.dto';
 import { LoginDto } from '../dto/login.dto';
@@ -17,34 +19,50 @@ import { AddressSetupDto } from '../dto/address-setup.dto';
 import { PasswordUtils } from '../utils/password.util';
 import { JwtPayload } from '../utils/jwt-payload.interface';
 import { NotificationService } from '../../notifications/notifications.service';
-import { ApiTags } from '@nestjs/swagger';
 import { ResetPasswordDto } from '../dto/set-new-password.dto';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
+import { ConfigService } from '@nestjs/config';
+import { Redis } from 'ioredis';
+import { Request } from 'express';
 
-@ApiTags('Authentication')
 @Injectable()
-export class AuthService {
+export class AuthService implements OnModuleInit {
+  private redisClient: Redis;
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private jwtService: JwtService,
-    private notificationService: NotificationService, // Inject NotificationService
+    private readonly jwtService: JwtService,
+    private readonly notificationService: NotificationService,
+    private readonly configService: ConfigService,
   ) {}
 
-  /** Normal user signup (Default: Buyer) */
-  async signup(dto: SignupDto): Promise<any> {
+  /** 🔹 Initialize Redis Connection */
+  async onModuleInit() {
+    const redisUrl = this.configService.get<string>('REDIS_URL');
+    if (!redisUrl) {
+      throw new Error('REDIS_URL is not set in environment variables');
+    }
+
+    this.redisClient = new Redis(redisUrl);
+    console.log('Connected to Redis Cloud ✅');
+  }
+  /** 🔹 Fetch User by ID */
+  async getUserById(userId: string): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new BadRequestException('User not found');
+    return user;
+  }
+
+  /** 🔹 User Signup (Default Role: Buyer) */
+  async signup(dto: SignupDto): Promise<{ message: string; newUser: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password, retypePassword } = dto;
 
-    if (password !== retypePassword) {
-      throw new BadRequestException('Passwords do not match');
-    }
+    if (password !== retypePassword) throw new BadRequestException('Passwords do not match');
 
-    const existingUser = await this.userModel.findOne({ email });
-    if (existingUser) {
-      throw new BadRequestException('Email already in use');
-    }
+    if (await this.userModel.exists({ email })) throw new BadRequestException('Email already in use');
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit code
+    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     const newUser = new this.userModel({
       firstName,
@@ -52,7 +70,7 @@ export class AuthService {
       email,
       phoneNumber,
       password: hashedPassword,
-      role: 'buyer', // Default role
+      role: 'buyer',
       verificationCode,
     });
 
@@ -62,30 +80,20 @@ export class AuthService {
     return { message: 'Signup successful. Please verify your email.', newUser };
   }
 
-  /** Super Admin creates an Admin */
-  async createAdmin(dto: CreateAdminDto, superAdminId: string): Promise<any> {
-    const superAdmin = await this.userModel.findById(superAdminId);
-    if (!superAdmin || superAdmin.role !== 'super-admin') {
-      throw new ForbiddenException('Only Super Admins can create Admins');
-    }
-
+  /** 🔹 Create Admin (Restricted Access) */
+  async createAdmin(dto: CreateAdminDto): Promise<{ message: string; newAdmin: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password } = dto;
 
-    const existingUser = await this.userModel.findOne({ email });
-    if (existingUser) {
-      throw new BadRequestException('Email already in use');
-    }
+    if (await this.userModel.exists({ email })) throw new BadRequestException('Email already in use');
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
-
     const newAdmin = new this.userModel({
       firstName,
       lastName,
       email,
       phoneNumber,
       password: hashedPassword,
-      role: 'admin',
-      createdBy: superAdminId,
+      role: UserRole.ADMIN,
     });
 
     await newAdmin.save();
@@ -94,55 +102,74 @@ export class AuthService {
     return { message: 'Admin created successfully', newAdmin };
   }
 
-  /** Login */
-  async login(dto: LoginDto): Promise<any> {
+  /** 🔹 Login */
+  async login(dto: LoginDto): Promise<{ message: string; token: string }> {
     const { email, password } = dto;
-
     const user = await this.userModel.findOne({ email });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
 
-    const isPasswordValid = await PasswordUtils.comparePasswords(password, user.password);
-    if (!isPasswordValid) {
+    if (!user || !(await PasswordUtils.comparePasswords(password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const payload: JwtPayload = { 
-      userId: user._id as string, 
-      email: user.email, 
-      role: user.role as 'admin' | 'buyer' 
+    const payload: JwtPayload = {
+      userId: user._id.toString(),
+      email: user.email,
+      role: user.role as 'admin' | 'buyer',
     };
-    const token = this.jwtService.sign(payload);
+
+    const token = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '10m',
+    });
 
     return { message: 'Login successful', token };
   }
 
-  /** Update user address */
+  /** 🔹 Update User Address */
   async updateAddress(userId: string, dto: AddressSetupDto) {
     return this.userModel.findByIdAndUpdate(userId, { address: dto }, { new: true });
   }
 
-  /** Logout user */
-  async logout() {
-    return { message: 'Logged out successfully' };
+  /** 🔹 Logout User (Invalidate JWT) */
+  async logout(req: Request): Promise<{ message: string }> {
+    try {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) throw new UnauthorizedException('No token provided');
+
+      const token = authHeader.split(' ')[1];
+      if (!token) throw new UnauthorizedException('Invalid token');
+
+      // Decode token to get expiration time
+      const decodedToken = this.jwtService.decode(token) as any;
+      if (!decodedToken?.exp) throw new UnauthorizedException('Invalid token payload');
+
+      const expiresIn = decodedToken.exp - Math.floor(Date.now() / 1000);
+      if (expiresIn <= 0) throw new UnauthorizedException('Token already expired');
+
+      // Blacklist token in Redis
+      await this.redisClient.setex(`blacklist:${token}`, expiresIn, 'blacklisted');
+
+      return { message: 'Logged out successfully' };
+    } catch (error) {
+      throw new UnauthorizedException('Logout failed');
+    }
   }
 
-  /** Request password reset (Step 1) */
-  async forgotPassword(dto: ForgotPasswordDto): Promise<any> {
+  /** 🔹 Check if Token is Blacklisted */
+  async isTokenBlacklisted(token: string): Promise<boolean> {
+    return (await this.redisClient.get(`blacklist:${token}`)) === 'blacklisted';
+  }
+
+  /** 🔹 Request Password Reset */
+  async forgotPassword(dto: ForgotPasswordDto): Promise<{ message: string }> {
     const { email } = dto;
     const user = await this.userModel.findOne({ email });
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    if (!user) throw new NotFoundException('User not found');
 
-    const resetToken = Math.floor(100000 + Math.random() * 900000).toString(); // 6-digit OTP
-    const resetTokenExpiry = new Date();
-    resetTokenExpiry.setMinutes(resetTokenExpiry.getMinutes() + 5); // OTP expires in 5 minutes
-
+    const resetToken = Math.floor(100000 + Math.random() * 900000).toString();
     user.passwordResetToken = resetToken;
-    user.passwordResetExpires = resetTokenExpiry;
+    user.passwordResetExpires = new Date(Date.now() + 5 * 60 * 1000); // 5 min expiry
     await user.save();
 
     await this.notificationService.sendPasswordResetEmail(email, resetToken);
@@ -150,8 +177,8 @@ export class AuthService {
     return { message: 'Password reset OTP sent to email' };
   }
 
-  /** Reset password (Step 2) */
-  async resetPassword(dto: ResetPasswordDto): Promise<any> {
+  /** 🔹 Reset Password */
+  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
     const { email, otp, newPassword, confirmPassword } = dto;
     const user = await this.userModel.findOne({ email });
 

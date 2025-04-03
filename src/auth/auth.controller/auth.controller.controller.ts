@@ -5,8 +5,12 @@ import {
   Body, 
   UseGuards, 
   Request, 
-  Patch 
+  Patch, 
+  Req, 
+  //ForbiddenException,
+  Get
 } from '@nestjs/common';
+import { Request as ExpressRequest } from 'express';
 import { AuthService } from '../auth.service/auth.service.service';
 import { SignupDto } from '../dto/signup.dto';
 import { CreateAdminDto } from '../dto/create-admin.dto';
@@ -16,13 +20,17 @@ import { JwtAuthGuard } from '../auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/set-new-password.dto';
+//import { UserRole } from '../auth.schema';
+//import { Roles } from 'src/common/decorators/roles.decorator';
+import { RolesGuard } from 'src/common/guards/roles.guard';
+import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 
 @ApiTags('Authentication') // Group authentication-related endpoints in Swagger
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
-  /** User Signup (Defaults to "Buyer" role) */
+  /** 🔹 User Signup (Defaults to "Buyer" role) */
   @Post('signup')
   @ApiOperation({ summary: 'Register a new user (Buyer by default)' })
   @ApiResponse({ status: 201, description: 'User successfully registered' })
@@ -31,19 +39,16 @@ export class AuthController {
     return this.authService.signup(dto);
   }
 
-  /** Super Admin creates an Admin */
-  @UseGuards(JwtAuthGuard) // Only authenticated Super Admins can create Admins
+  @UseGuards(ApiKeyGuard) // Require API key for this route
   @Post('create-admin')
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Super Admin creates a new Admin' })
-  @ApiResponse({ status: 201, description: 'Admin account successfully created' })
-  @ApiResponse({ status: 400, description: 'Bad Request (Email already in use)' })
-  @ApiResponse({ status: 403, description: 'Forbidden (User not authorized)' })
-  async createAdmin(@Request() req, @Body() dto: CreateAdminDto) {
-    return this.authService.createAdmin(dto, req.user.id);
+  @ApiOperation({ summary: 'Create an Admin (Restricted by API Key)' })
+  @ApiResponse({ status: 201, description: 'Admin successfully created' })
+  @ApiResponse({ status: 403, description: 'Forbidden: Invalid API Key' })
+  async createAdmin(@Body() dto: CreateAdminDto) {
+    return this.authService.createAdmin(dto);
   }
 
-  /** User Login */
+  /** 🔹 User Login */
   @Post('login')
   @ApiOperation({ summary: 'User Login' })
   @ApiResponse({ status: 200, description: 'Login successful' })
@@ -52,10 +57,21 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
-  /** Update Address (Authenticated Users) */
+  /** Get User Profile (Requires Authentication) */
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Get('profile')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized (Invalid or missing token)' })
+  async getProfile(@Request() req) {
+    return req.user; // Returns JWT payload (user details)
+  }
+
+  /** 🔹 Update Address (Authenticated Users) */
   @UseGuards(JwtAuthGuard)
   @Patch('address-setup')
-  @ApiBearerAuth() // Requires authentication token
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Update user address' })
   @ApiResponse({ status: 200, description: 'Address updated successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized (Token missing or invalid)' })
@@ -63,16 +79,16 @@ export class AuthController {
     return this.authService.updateAddress(req.user.id, dto);
   }
 
-  /** Logout User */
+  /** 🔹 Logout User (Invalidate JWT) */
   @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout user' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
-  async logout() {
-    return this.authService.logout();
+  async logout(@Req() req: ExpressRequest) {
+    return this.authService.logout(req);
   }
-
+  /** 🔹 Forgot Password (Request OTP) */
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset (Step 1)' })
   @ApiResponse({ status: 200, description: 'OTP sent to registered email' })
@@ -81,6 +97,7 @@ export class AuthController {
     return this.authService.forgotPassword(dto);
   }
 
+  /** 🔹 Reset Password (Using OTP) */
   @Patch('reset-password')
   @ApiOperation({ summary: 'Reset password (Step 2)' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
@@ -88,5 +105,4 @@ export class AuthController {
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
   }
-
 }

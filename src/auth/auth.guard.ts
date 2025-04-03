@@ -1,22 +1,35 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
-import { JwtService } from '@nestjs/jwt';
+import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { AuthService } from '../auth/auth.service/auth.service.service';
 
 @Injectable()
-export class JwtAuthGuard implements CanActivate {
-  constructor(private jwtService: JwtService) {}
+export class JwtAuthGuard extends AuthGuard('jwt') {
+  constructor(private readonly authService: AuthService) {
+    super();
+  }
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
-    const token = req.headers.authorization?.split(' ')[1];
+    const authHeader = req.headers.authorization;
 
-    if (!token) throw new UnauthorizedException('Unauthorized');
+    if (!authHeader) throw new UnauthorizedException('No token provided');
 
-    try {
-      req.user = this.jwtService.verify(token);
-      return true;
-    } catch {
-      throw new UnauthorizedException('Invalid token');
+    const token = authHeader.split(' ')[1];
+    if (!token) throw new UnauthorizedException('Invalid token');
+
+    // Check if token is blacklisted
+    const isBlacklisted = await this.authService.isTokenBlacklisted(token);
+    if (isBlacklisted) throw new UnauthorizedException('Token has been revoked');
+
+    return (await super.canActivate(context)) as boolean;
+  }
+
+  handleRequest(err, user) {
+    if (err || !user) {
+      throw err || new UnauthorizedException('Invalid or missing token');
     }
+
+    return user;
   }
 }

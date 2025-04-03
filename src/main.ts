@@ -7,20 +7,21 @@ import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
   const configService = app.get(ConfigService);
 
-  
-
-  // Enable Swagger
-  const config = new DocumentBuilder()
+  // Swagger API Docs Config with API Key Authentication
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Shoppmoore API')
-    .setDescription('API documentation for the Shoppmoore platform')
+    .setDescription('E-commerce API documentation')
     .setVersion('1.0')
     .addBearerAuth()
+    .addApiKey(
+      { type: 'apiKey', in: 'header', name: 'x-api-key' },
+      'x-api-key'
+    )
     .build();
 
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, document);
 
   // Enable Global Validation
@@ -28,15 +29,13 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       transform: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
+      transformOptions: { enableImplicitConversion: true },
     }),
   );
 
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);
-  console.log(`Server is running on http://localhost:${port}`);
+  console.log(`🚀 Server is running on http://localhost:${port}`);
 }
 
 bootstrap();

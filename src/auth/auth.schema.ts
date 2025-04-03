@@ -6,7 +6,7 @@ export enum UserRole {
   ADMIN = 'admin',
   USER = 'user',
   BUYER = 'buyer',
-  SUPER_ADMIN = 'super-admin',
+  //SUPER_ADMIN = 'super-admin',
 }
 
 @Schema({ timestamps: true })
@@ -53,3 +53,12 @@ export class User {
 
 export type UserDocument = User & Document;
 export const UserSchema = SchemaFactory.createForClass(User);
+UserSchema.set('toJSON', {
+  virtuals: true,
+  versionKey: false,
+  transform: (_, ret) => {
+     ret.id = ret._id;
+     delete ret._id;
+     delete ret.password; // Remove password from response
+  },
+});
