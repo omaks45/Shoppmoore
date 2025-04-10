@@ -23,7 +23,7 @@ import { UserEntity } from '../users/entities/user.entity';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
-import { UserRole } from '../auth/auth.schema';
+import { UserRole } from 'src/common/enums/roles.enum';
 import { User } from '../common/decorators/user.decorator'; //New decorator
 //import { JwtPayload } from 'src/auth/utils/jwt-payload.interface';
 
