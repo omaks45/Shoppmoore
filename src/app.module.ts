@@ -9,7 +9,8 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './common/guards/roles.guard';
 import { UserModule } from './users/users.module';
-import { ProductsModule } from './products/products.module';
+import { ProductModule } from './products/products.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 
 @Module({
@@ -27,7 +28,9 @@ import { ProductsModule } from './products/products.module';
 
     UserModule,
 
-    ProductsModule,
+    ProductModule,
+
+    CloudinaryModule 
   ],
   controllers: [AppController],
   providers: [AppService,  {
