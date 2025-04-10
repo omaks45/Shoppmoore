@@ -1,9 +1,5 @@
 /* eslint-disable prettier/prettier */
-/**
- * * @file user.service.ts
- * * @description Service for managing user-related operations.
- */
-
+// user.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
@@ -40,10 +36,16 @@ export class UserService {
     return this.toEntity(doc);
   }
 
+  // NEW: Return the actual Mongoose document (not .lean())
+  async findRawById(id: string): Promise<UserDocument> {
+    const user = await this.userModel.findById(id);
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
   async updateProfile(id: string, dto: UpdateUserDto): Promise<UserEntity> {
     const doc = await this.userModel.findByIdAndUpdate(id, dto, { new: true }).lean();
     if (!doc) throw new NotFoundException('User not found');
-    // notify about update
     await this.notificationService.sendNotification({
       message: `Your profile was updated`,
       userId: id,
@@ -54,11 +56,9 @@ export class UserService {
   async remove(id: string): Promise<void> {
     const doc = await this.userModel.findByIdAndDelete(id).lean();
     if (!doc) throw new NotFoundException('User not found');
-    // notify about deletion
     await this.notificationService.sendNotification({
       message: `User with ID ${id} has been deleted.`,
       userId: id,
     });
-    // no need to return the deleted doc or assign to an unused variable
   }
 }

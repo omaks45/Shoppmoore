@@ -47,14 +47,12 @@ export class AuthService implements OnModuleInit {
     }
 
     this.redisClient = new Redis(redisUrl);
-    console.log('Connected to Redis Cloud ✅');
+    console.log('Connected to Redis Cloud ');
   }
-  /** 🔹 Fetch User by ID */
-  async getUserById(userId: string): Promise<UserDocument> {
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) throw new BadRequestException('User not found');
-    return user;
+  async getUserById(userId: string): Promise<UserDocument | null> {
+    return this.userModel.findById(userId); // no lean()
   }
+  
 
   /** 🔹 User Signup (Default Role: Buyer) */
   async signup(dto: SignupDto): Promise<{ message: string; newUser: UserDocument }> {

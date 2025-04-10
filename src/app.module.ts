@@ -4,10 +4,12 @@ import { ConfigModule } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { AuthModuleModule } from './auth/auth.module/auth.module.module';
+import { AuthModule } from './auth/auth.module/auth.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { APP_GUARD } from '@nestjs/core';
 import { RolesGuard } from './common/guards/roles.guard';
+import { UserModule } from './users/users.module';
+import { ProductsModule } from './products/products.module';
 
 
 @Module({
@@ -19,9 +21,13 @@ import { RolesGuard } from './common/guards/roles.guard';
     // Connect to MongoDB using environment variables
     MongooseModule.forRoot(process.env.MONGODB_URI),
 
-    AuthModuleModule,
+    AuthModule,
 
     NotificationsModule,
+
+    UserModule,
+
+    ProductsModule,
   ],
   controllers: [AppController],
   providers: [AppService,  {

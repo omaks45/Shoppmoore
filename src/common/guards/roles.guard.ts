@@ -19,10 +19,10 @@ export class RolesGuard implements CanActivate {
     }
 
     const request = context.switchToHttp().getRequest();
-    console.log('🔍 User object from request:', request.user); // Debugging
+    console.log('User object from request:', request.user); // Debugging
 
     if (!request.user) {
-      console.log('❌ No user found on request object');
+      console.log('No user found on request object');
       throw new ForbiddenException('Authentication failed: No user found.');
     }
 
