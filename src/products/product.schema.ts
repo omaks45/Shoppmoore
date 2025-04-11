@@ -52,6 +52,9 @@ export class Product {
 
   @Prop({ default: true })
   isAvailable: boolean;
+
+  @Prop({ default: false })
+  isDeleted: boolean;
 }
 
 export const ProductSchema = SchemaFactory.createForClass(Product);

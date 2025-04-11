@@ -10,6 +10,7 @@ import {
   UploadedFile,
   UseGuards,
   Patch,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './products.service';
@@ -22,6 +23,8 @@ import {
   ApiTags,
   ApiConsumes,
   ApiBody,
+  ApiOperation,
+  ApiParam,
 } from '@nestjs/swagger';
 // import { RolesGuard } from 'src/common/guards/roles.guard';
 // import { Roles } from 'src/common/decorators/roles.decorator';
@@ -56,10 +59,20 @@ export class ProductController {
   }
 
   @Get('stock-out')
-  // @Roles(UserRole.ADMIN) // Optional: Only allow admins to view stock-out
-  async stockOut() {
-    return this.productService.stockOut();
+  async stockOut(
+  @Query('category') category?: string,
+  @Query('minPrice') minPrice?: number,
+  @Query('maxPrice') maxPrice?: number,
+  @Query('includeDeleted') includeDeleted?: string,
+  ) {
+    return this.productService.stockOut(
+    category,
+    minPrice ? Number(minPrice) : undefined,
+    maxPrice ? Number(maxPrice) : undefined,
+    includeDeleted === 'true',
+  );
   }
+
 
   @Get(':id')
   async findById(@Param('id') id: string) {
@@ -82,4 +95,12 @@ export class ProductController {
   ) {
     return this.productService.update(id, body, file, user);
   }
+
+  @Delete(':id')
+  @ApiOperation({ summary: 'Soft delete a product by ID' })
+  @ApiParam({ name: 'id', type: String })
+  async softDelete(@Param('id') id: string) {
+    return this.productService.softDelete(id);
+  }
+
 }
