@@ -83,11 +83,13 @@ export class AuthService implements OnModuleInit {
     return { message: 'Signup successful. Please verify your email.', newUser };
   }
 
-  /** 🔹 Create Admin (Restricted Access) */
+  /**Create Admin (Restricted Access) */
   async createAdmin(dto: CreateAdminDto): Promise<{ message: string; newAdmin: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password } = dto;
 
-    if (await this.userModel.exists({ email })) throw new BadRequestException('Email already in use');
+    if (await this.userModel.exists({ email })) {
+      throw new BadRequestException('Email already in use');
+    }
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
     const newAdmin = new this.userModel({
@@ -97,6 +99,7 @@ export class AuthService implements OnModuleInit {
       phoneNumber,
       password: hashedPassword,
       role: UserRole.ADMIN,
+      isVerified: true, 
     });
 
     await newAdmin.save();
@@ -104,6 +107,7 @@ export class AuthService implements OnModuleInit {
 
     return { message: 'Admin created successfully', newAdmin };
   }
+
 
   /** 🔹 Login */
   async login(dto: LoginDto): Promise<{ message: string; token: string }> {
