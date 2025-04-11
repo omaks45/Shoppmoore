@@ -49,8 +49,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
 
   async validate(payload: { userId: string; email: string; role: string }) {
-    console.log('JWT Payload:', payload);
-    console.log('[JwtStrategy] Payload:', payload);
+    //console.log('JWT Payload:', payload);
+    //console.log('[JwtStrategy] Payload:', payload);
   
     // Optional: re-fetch user from DB if you need updated data
     const user = await this.authService.getUserById(payload.userId);
@@ -60,14 +60,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('User not found');
     }
 
-    console.log('User authenticated:', user);
+    //console.log('User authenticated:', user);
+    // Attach the user to the request object for further use in the application
+    return user;
 
-    // Only return the safe parts
-    return {
-      userId: user._id.toString(), // make sure it's a string
-      email: user.email,
-      role: user.role,
-    };
   }
 
 

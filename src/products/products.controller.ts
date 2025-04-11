@@ -1,5 +1,4 @@
 /* eslint-disable prettier/prettier */
-
 import {
   Controller,
   Get,
@@ -12,34 +11,43 @@ import {
   UseGuards,
   Patch,
 } from '@nestjs/common';
-import { ProductService } from '../products/products.service';
-import { CreateProductDto } from '../products/dto/create-product.dto';
-import { UpdateProductDto } from '../products/dto/update-product.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiBody, ApiConsumes, ApiTags } from '@nestjs/swagger';
-import { Roles } from 'src/common/decorators/roles.decorator';
-import { UserRole } from 'src/common/enums/roles.enum';
-import { JwtAuthGuard } from '../auth/auth.guard';
+import { ProductService } from './products.service';
+import { CreateProductDto } from './dto/create-product.dto';
+import { UpdateProductDto } from './dto/update-product.dto';
+import { JwtAuthGuard } from 'src/auth/auth.guard';
+import { User } from 'src/common/decorators/user.decorator';
+import {
+  ApiBearerAuth,
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
+// import { RolesGuard } from 'src/common/guards/roles.guard';
+// import { Roles } from 'src/common/decorators/roles.decorator';
+// import { UserRole } from 'src/common/enums/roles.enum';
 
 @ApiTags('Products')
 @ApiBearerAuth()
 @Controller('products')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard /*, RolesGuard */)
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor('file'))
+  // @Roles(UserRole.ADMIN) // Uncomment if role restriction is needed
+  @UseInterceptors(FileInterceptor('image')) //File field name is 'image'
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     type: CreateProductDto,
+    description: 'Form-data including text fields and image file',
   })
   async create(
     @Body() body: CreateProductDto,
     @UploadedFile() file: Express.Multer.File,
+    @User() user: any,
   ) {
-    return this.productService.create(body, file);
+    return this.productService.create(body, file, user);
   }
 
   @Get()
@@ -48,7 +56,7 @@ export class ProductController {
   }
 
   @Get('stock-out')
-  @Roles(UserRole.ADMIN)
+  // @Roles(UserRole.ADMIN) // Optional: Only allow admins to view stock-out
   async stockOut() {
     return this.productService.stockOut();
   }
@@ -59,13 +67,19 @@ export class ProductController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN)
-  @UseInterceptors(FileInterceptor('file'))
+  // @Roles(UserRole.ADMIN)
+  @UseInterceptors(FileInterceptor('image')) //Ensure same field name
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    type: UpdateProductDto,
+    description: 'Update form-data including optional new image',
+  })
   async update(
     @Param('id') id: string,
     @Body() body: UpdateProductDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile() file: Express.Multer.File,
+    @User() user: any,
   ) {
-    return this.productService.update(id, body, file);
+    return this.productService.update(id, body, file, user);
   }
 }

@@ -10,6 +10,7 @@ import { AuthController } from '../auth.controller/auth.controller.controller';
 import { AuthService } from '../auth.service/auth.service.service';
 import { JwtStrategy } from '../jwt.strategy';
 import { User, UserSchema } from '../auth.schema';
+import { JwtAuthGuard } from '../auth.guard';
 
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { UserModule } from '../../users/users.module'; //Fix path & circular import
@@ -31,7 +32,7 @@ import { UserModule } from '../../users/users.module'; //Fix path & circular imp
     NotificationsModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, JwtStrategy, PassportModule], //Needed in user module or guards
+  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  exports: [AuthService, JwtStrategy, PassportModule, JwtAuthGuard], //Needed in user module or guards
 })
 export class AuthModule {}

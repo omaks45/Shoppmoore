@@ -14,7 +14,7 @@ import { AuthModule } from '../auth/auth.module/auth.module';
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     CacheModule.register(),
     NotificationsModule,
-    forwardRef(() => AuthModule), // ✅ Fix circular ref
+    forwardRef(() => AuthModule),
   ],
   controllers: [UserController],
   providers: [UserService],

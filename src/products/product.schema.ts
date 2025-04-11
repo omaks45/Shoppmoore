@@ -7,7 +7,7 @@
 
 
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 
 export type ProductDocument = Product & Document;
 
@@ -40,8 +40,15 @@ export class Product {
   @Prop()
   imageUrl: string;
 
-  @Prop({ type: Types.ObjectId, ref: 'User' })
+  //@Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
+  //createdBy: string;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   createdBy: string;
+
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
+  updatedBy?: string;
+
 
   @Prop({ default: true })
   isAvailable: boolean;

@@ -23,21 +23,22 @@ export class ProductService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async create(createDto: CreateProductDto, file?: Express.Multer.File): Promise<Product> {
+  async create(createDto: CreateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
     const existing = await this.productModel.findOne({ SKU: createDto.SKU });
     if (existing) throw new BadRequestException('Product with SKU already exists');
-
+  
     let imageUrl: string;
     if (file) {
       const result = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
       imageUrl = result.secure_url;
     }
-
+  
     const newProduct = new this.productModel({
       ...createDto,
       imageUrl,
+      createdBy: user._id, //track creator
     });
-
+  
     await this.cacheManager.del('products:all');
     return newProduct.save();
   }
@@ -70,19 +71,22 @@ export class ProductService {
     return product;
   }
 
-  async update(id: string, updateDto: UpdateProductDto, file?: Express.Multer.File): Promise<Product> {
+  async update(id: string, updateDto: UpdateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
     const product = await this.productModel.findById(id);
     if (!product) throw new NotFoundException('Product not found');
-
+  
     if (file) {
       const result = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
       product.imageUrl = result.secure_url;
     }
-
+  
     Object.assign(product, updateDto);
+    product.updatedBy = user._id; //track updater
+  
     await this.cacheManager.del(`product:${id}`);
     return product.save();
   }
+  
 
   async stockOut(): Promise<any[]> {
     return this.productModel

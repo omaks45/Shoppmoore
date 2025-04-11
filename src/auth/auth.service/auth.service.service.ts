@@ -151,6 +151,12 @@ export class AuthService implements OnModuleInit {
 
       // Blacklist token in Redis
       await this.redisClient.setex(`blacklist:${token}`, expiresIn, 'blacklisted');
+      console.log({
+        exp: decodedToken.exp,
+        now: Math.floor(Date.now() / 1000),
+        expiresIn,
+      });
+      
 
       return { message: 'Logged out successfully' };
     } catch (error) {

@@ -3,6 +3,7 @@ import {
   Injectable,
   ExecutionContext,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
@@ -40,11 +41,24 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return (await super.canActivate(context)) as boolean;
   }
 
+  /*
   handleRequest(err, user, info) {
     if (err || !user) {
       console.log('JWT validation failed:', info?.message || err?.message);
       throw err || new UnauthorizedException('Invalid or expired token');
     }
+
+    return user;
+  }
+  */
+
+  handleRequest(err, user, info, context: ExecutionContext) {
+    if (err || !user) {
+      throw new ForbiddenException('Authentication failed: No user found.');
+    }
+
+    const request = context.switchToHttp().getRequest();
+    request.user = user; //Attach user to request
 
     return user;
   }
