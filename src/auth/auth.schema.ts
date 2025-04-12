@@ -4,7 +4,7 @@ import { Document } from 'mongoose';
 
 export enum UserRole {
   ADMIN = 'admin',
-  USER = 'user',
+ // USER = 'user',
   BUYER = 'buyer',
   //SUPER_ADMIN = 'super-admin',
 }
@@ -26,7 +26,8 @@ export class User {
   @Prop({ required: true })
   password: string;
 
-  @Prop({ enum: UserRole, default: UserRole.USER })
+  // @Prop({ required: true, unique: true })
+  @Prop({ enum: UserRole, default: UserRole.BUYER })
   role: UserRole;
 
   @Prop({ default: false })

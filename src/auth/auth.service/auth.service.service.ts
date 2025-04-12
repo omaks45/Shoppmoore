@@ -47,14 +47,12 @@ export class AuthService implements OnModuleInit {
     }
 
     this.redisClient = new Redis(redisUrl);
-    console.log('Connected to Redis Cloud ✅');
+    console.log('Connected to Redis Cloud ');
   }
-  /** 🔹 Fetch User by ID */
-  async getUserById(userId: string): Promise<UserDocument> {
-    const user = await this.userModel.findById(userId).exec();
-    if (!user) throw new BadRequestException('User not found');
-    return user;
+  async getUserById(userId: string): Promise<UserDocument | null> {
+    return this.userModel.findById(userId); // no lean()
   }
+  
 
   /** 🔹 User Signup (Default Role: Buyer) */
   async signup(dto: SignupDto): Promise<{ message: string; newUser: UserDocument }> {
@@ -85,11 +83,13 @@ export class AuthService implements OnModuleInit {
     return { message: 'Signup successful. Please verify your email.', newUser };
   }
 
-  /** 🔹 Create Admin (Restricted Access) */
+  /**Create Admin (Restricted Access) */
   async createAdmin(dto: CreateAdminDto): Promise<{ message: string; newAdmin: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password } = dto;
 
-    if (await this.userModel.exists({ email })) throw new BadRequestException('Email already in use');
+    if (await this.userModel.exists({ email })) {
+      throw new BadRequestException('Email already in use');
+    }
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
     const newAdmin = new this.userModel({
@@ -99,6 +99,7 @@ export class AuthService implements OnModuleInit {
       phoneNumber,
       password: hashedPassword,
       role: UserRole.ADMIN,
+      isVerified: true, 
     });
 
     await newAdmin.save();
@@ -106,6 +107,7 @@ export class AuthService implements OnModuleInit {
 
     return { message: 'Admin created successfully', newAdmin };
   }
+
 
   /** 🔹 Login */
   async login(dto: LoginDto): Promise<{ message: string; token: string }> {
@@ -153,6 +155,12 @@ export class AuthService implements OnModuleInit {
 
       // Blacklist token in Redis
       await this.redisClient.setex(`blacklist:${token}`, expiresIn, 'blacklisted');
+      console.log({
+        exp: decodedToken.exp,
+        now: Math.floor(Date.now() / 1000),
+        expiresIn,
+      });
+      
 
       return { message: 'Logged out successfully' };
     } catch (error) {

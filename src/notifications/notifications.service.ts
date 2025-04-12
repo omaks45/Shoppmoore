@@ -4,6 +4,9 @@ import * as nodemailer from 'nodemailer';
 
 @Injectable()
 export class NotificationService {
+  sendNotification({ message, userId }: { message: string; userId: string; }) {
+    console.log(`Notification sent to user ${userId}: ${message}`);
+  }
   private transporter;
 
   constructor() {

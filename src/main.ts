@@ -10,7 +10,7 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  // Enable CORS (needed if your frontend is on a different domain)
+  // Enable CORS
   app.enableCors();
 
   // Global Validation Pipes
@@ -19,32 +19,28 @@ async function bootstrap() {
       whitelist: true,
       transform: true,
       transformOptions: { enableImplicitConversion: true },
-      forbidNonWhitelisted: true, // Reject unknown properties
+      forbidNonWhitelisted: true,
     }),
   );
 
-  // Swagger API Documentation
+  // Swagger setup
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shoppmoore API')
     .setDescription('E-commerce API documentation')
     .setVersion('1.0')
     .addBearerAuth()
-    .addApiKey(
-      { type: 'apiKey', in: 'header', name: 'x-api-key' },
-      'x-api-key',
-    )
+    .addApiKey({ type: 'apiKey', in: 'header', name: 'x-api-key' }, 'x-api-key')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api', app, document);
 
-  // Set Dynamic Port for Render Deployment
+  // Start the server
   const port = process.env.PORT || configService.get<number>('PORT') || 5000;
   await app.listen(port);
-
   logger.log(`🚀 Server is running on: ${await app.getUrl()}`);
 
-  // Handle graceful shutdown
+  // Graceful shutdown hooks
   process.on('SIGINT', async () => {
     logger.warn('💡 SIGINT received. Shutting down...');
     await app.close();
@@ -56,6 +52,14 @@ async function bootstrap() {
     await app.close();
     process.exit(0);
   });
+
+  // Disable console logs in production
+  if (process.env.NODE_ENV === 'production') {
+    console.log = () => {};
+    console.debug = () => {};
+    console.warn = () => {};
+  }
+
 }
 
 bootstrap();
