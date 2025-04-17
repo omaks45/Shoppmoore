@@ -32,25 +32,34 @@ export class ProductService {
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
-  async create(createDto: CreateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
+  async create(
+    createDto: CreateProductDto,
+    file?: Express.Multer.File,
+    user?: any
+  ): Promise<Product> {
     const existing = await this.productModel.findOne({ SKU: createDto.SKU });
-    if (existing) throw new BadRequestException('Product with SKU already exists');
-  
-    let imageUrl: string;
-    if (file) {
-      const result = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
-      imageUrl = result.secure_url;
+    if (existing) {
+      throw new BadRequestException('Product with SKU already exists');
     }
-  
+
+    let imageUrl: string | undefined;
+    if (file) {
+      const result = await this.cloudinaryService.uploadImage(
+      file.buffer,
+      file.originalname,
+    );
+    imageUrl = result.secure_url;
+    }
+
     const newProduct = new this.productModel({
       ...createDto,
       imageUrl,
-      createdBy: user._id, //track creator
+      createdBy: user._id,
     });
-  
-    await this.cacheManager.del('products:all');
+
     return newProduct.save();
   }
+
 
   async findAll(page = 1, limit = 10): Promise<{ data: Product[]; total: number }> {
     const cacheKey = `products:all:page:${page}:limit:${limit}`;
@@ -142,13 +151,15 @@ export class ProductService {
 
   // Soft delete a product by ID
   // This method marks the product as deleted without removing it from the database.
-  async softDelete(id: string): Promise<{ message: string }> {
+  async softDelete(id: string, user: any): Promise<{ message: string }> {
     const product = await this.productModel.findById(id);
     if (!product || product.isDeleted) {
       throw new NotFoundException('Product not found or already deleted');
     }
   
     product.isDeleted = true;
+    product.deletedBy = user._id;
+  
     await product.save();
   
     await this.cacheManager.del(`product:${id}`);
