@@ -13,6 +13,7 @@ import { OrderLog, OrderLogDocument } from './schema/order-log.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { NotificationService } from '../notifications/notifications.service';
+import { PopulatedOrder } from './order.types'; // Adjust the import path as necessary
 
 @Injectable()
 export class OrderService {
@@ -23,19 +24,43 @@ export class OrderService {
     private notificationService: NotificationService,
   ) {}
 
+  
   async createOrder(dto: CreateOrderDto) {
     const newOrder = await this.orderModel.create(dto);
-
+  
     await this.logModel.create({
       orderId: newOrder._id,
       action: 'created',
       performedBy: dto.buyer,
     });
-
-    await this.notificationService.sendOrderConfirmationEmail(dto.buyer, newOrder._id);
-
+  
+    // Fetch the full order with populated fields
+    const populatedOrder = await this.orderModel
+    .findById(newOrder._id)
+    .populate('buyer', 'firstName email fullName')
+    .populate('orderItems.productId', 'name') as unknown as PopulatedOrder;
+  
+    // Convert orderItems to the shape NotificationService expects
+    const orderToSend = {
+      _id: populatedOrder._id,
+      items: populatedOrder.orderItems.map((item: any) => ({
+        productName: item.productId.name,
+        quantity: item.quantity,
+      })),
+      totalAmount: populatedOrder.totalPrice,
+      estimatedDeliveryDate: populatedOrder.estimatedDeliveryDate || null,
+    };
+  
+    const user = {
+      email: populatedOrder.buyer.email,
+      firstName: populatedOrder.buyer.firstName || populatedOrder.buyer.lastName,
+    };
+  
+    await this.notificationService.sendOrderConfirmationEmail(user, orderToSend);
+  
     return newOrder;
   }
+  
 
   async getOrderById(orderId: string) {
     const order = await this.orderModel
@@ -67,27 +92,53 @@ export class OrderService {
     return { total, page, limit, orders };
   }
 
+  
   async updateStatus(orderId: string, dto: UpdateStatusDto) {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('Order not found');
-
+  
     order.status = dto.status;
     await order.save();
-
+  
     await this.logModel.create({
       orderId,
       action: dto.status,
       performedBy: dto.performedBy,
     });
-
-    if (dto.status === 'delivered')
-      await this.notificationService.sendOrderDeliveredEmail(order.buyer, order._id);
-
-    if (dto.status === 'cancelled')
-      await this.notificationService.sendOrderCancelledEmail(order.buyer, order._id);
-
+  
+    // Populate the order details just like in createOrder()
+    const populatedOrder = await this.orderModel
+      .findById(orderId)
+      .populate('buyer', 'firstName email fullName')
+      .populate('orderItems.productId', 'name') as unknown as PopulatedOrder;
+  
+    const orderToSend = {
+      _id: populatedOrder._id,
+      items: populatedOrder.orderItems.map((item: any) => ({
+        productName: item.productId.name,
+        quantity: item.quantity,
+      })),
+      totalAmount: populatedOrder.totalPrice,
+      estimatedDeliveryDate: populatedOrder.estimatedDeliveryDate || null,
+    };
+  
+    const user = {
+      email: populatedOrder.buyer.email,
+      firstName: populatedOrder.buyer.firstName || populatedOrder.buyer.lastName,
+    };
+  
+    // Handle status-specific email notifications
+    if (dto.status === 'delivered') {
+      await this.notificationService.sendOrderDeliveredEmail(user, orderToSend);
+    }
+  
+    if (dto.status === 'cancelled') {
+      await this.notificationService.sendOrderCancelledEmail(user, orderToSend);
+    }
+  
     return order;
   }
+  
 
   async getLogs(orderId: string) {
     return this.logModel.find({ orderId }).sort({ createdAt: -1 });

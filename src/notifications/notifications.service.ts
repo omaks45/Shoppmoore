@@ -76,7 +76,7 @@ export class NotificationService {
 
       🛒 <strong>Order Summary:</strong><br>
       • Items: ${order.items.map((item) => `${item.productName} x${item.quantity}`).join(', ')}<br>
-      • Total Amount: $${order.totalAmount}<br>
+      • Total Amount: N${order.totalAmount}<br>
       • Estimated Delivery: ${order.estimatedDeliveryDate || 'N/A'}<br><br>
 
       You can track your order anytime from your profile page.<br><br>

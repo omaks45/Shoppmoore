@@ -9,8 +9,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
-export type OrderDocument = HydratedDocument<Order>;
-
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
@@ -31,8 +29,12 @@ export class Order {
   @Prop()
   paymentMethod: string;
 
-  @Prop({ default: 'pending' }) // pending | assigned | delivered | cancelled
+  @Prop({ default: 'pending' })
   status: string;
+
+  @Prop()
+  estimatedDeliveryDate?: Date;
 }
 
+export type OrderDocument = HydratedDocument<Order>;
 export const OrderSchema = SchemaFactory.createForClass(Order);
