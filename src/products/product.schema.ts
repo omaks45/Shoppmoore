@@ -5,7 +5,6 @@
  * This schema defines the structure of the Product document in MongoDB.
  */
 
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import mongoose, { Document } from 'mongoose';
 
@@ -40,15 +39,14 @@ export class Product {
   @Prop()
   imageUrl: string;
 
-  //@Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
-  //createdBy: string;
-
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
-  createdBy: string;
+  createdBy: mongoose.Schema.Types.ObjectId;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User' })
-  updatedBy?: string;
+  updatedBy?: mongoose.Schema.Types.ObjectId;
 
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null })
+  deletedBy?: mongoose.Schema.Types.ObjectId;
 
   @Prop({ default: true })
   isAvailable: boolean;

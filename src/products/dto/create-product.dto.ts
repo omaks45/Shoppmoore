@@ -1,9 +1,9 @@
 /* eslint-disable prettier/prettier */
 /**
  * CreateProductDto
- * 
- * This Data Transfer Object (DTO) is used for creating a new product in the system.
- * It defines the structure of the data that should be sent in the request body when creating a product.
+ *
+ * This DTO is used for creating a new product.
+ * 'createdBy' is now handled automatically via JWT, not passed in the body.
  */
 
 import { ApiProperty } from '@nestjs/swagger';
@@ -12,7 +12,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsMongoId,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -88,11 +87,4 @@ export class CreateProductDto {
     format: 'binary',
   })
   image?: any;
-
-  @ApiProperty({
-    description: 'MongoDB ObjectId of the user creating the product',
-    example: '60f8a1c8e1c4e012d4c0a5f9',
-  })
-  @IsMongoId()
-  createdBy: string;
 }
