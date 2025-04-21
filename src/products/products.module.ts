@@ -17,7 +17,7 @@ import { AuthModule } from '../auth/auth.module/auth.module';
     MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
     CloudinaryModule,
     CacheModule.register(),
-    forwardRef(() => AuthModule), // ✅ Use forwardRef to resolve circular dependency
+    forwardRef(() => AuthModule), //Use forwardRef to resolve circular dependency
   ],
   controllers: [ProductController],
   providers: [
