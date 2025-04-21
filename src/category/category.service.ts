@@ -133,15 +133,16 @@ export class CategoryService {
     };
   }
 
-  async update(id: string, dto: UpdateCategoryDto) {
+  
+  async update(id: string, dto: UpdateCategoryDto, file?: Express.Multer.File) {
     const existing = await this.categoryModel.findById(id);
     if (!existing) throw new NotFoundException('Category not found');
-
+  
     let imageUrl;
-
-    if (dto.image) {
-      this.validateImage(dto.image);
-
+  
+    if (file) {
+      this.validateImage(file);
+  
       // Delete old image if it exists
       if (existing.image) {
         const publicId = this.extractPublicId(existing.image);
@@ -149,27 +150,28 @@ export class CategoryService {
           await this.cloudinary.deleteImage(publicId);
         }
       }
-
+  
       const filename = `category-${id}-${Date.now()}`;
-      imageUrl = await this.cloudinary.uploadImage(dto.image.buffer, filename);
+      imageUrl = await this.cloudinary.uploadImage(file.buffer, filename);
     }
-
+  
     if (dto.name) {
       dto.slug = slugify(dto.name);
     }
-
+  
     const updated = await this.categoryModel.findByIdAndUpdate(
       id,
       {
         ...dto,
-        ...(imageUrl && { image: imageUrl }),
+        ...(imageUrl && { image: imageUrl.secure_url }),
       },
       { new: true },
     );
-
+  
     await this.cacheManager.del('categories');
     return updated;
   }
+  
 
   async remove(id: string) {
     const deleted = await this.categoryModel.findByIdAndDelete(id);

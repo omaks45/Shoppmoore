@@ -13,6 +13,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CacheInterceptor } from '@nestjs/cache-manager';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { CacheInterceptor } from '@nestjs/cache-manager';
     UserModule,
     ProductModule,
     CloudinaryModule,
+    CategoryModule,
   ],
   controllers: [AppController],
   providers: [
