@@ -133,10 +133,35 @@ export class AuthService implements OnModuleInit {
   }
 
   /** 🔹 Update User Address */
-  async updateAddress(userId: string, dto: AddressSetupDto) {
-    return this.userModel.findByIdAndUpdate(userId, { address: dto }, { new: true });
+  async updateAddress(userId: string, dto: AddressSetupDto): Promise<{ message: string }> {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+    //console.log('Found user:', user);
+  
+    const updatedUser = await this.userModel.findByIdAndUpdate(
+      userId,
+      {
+        address: {
+          street: dto.street,
+          aptOrSuite: dto.aptOrSuite,
+          city: dto.city,
+          country: dto.country,
+          zipCode: dto.zipCode,
+        },
+      },
+      { new: true }
+    );
+  
+    if (!updatedUser) {
+      throw new NotFoundException('User not found or update failed');
+    }
+  
+    return { message: 'Address updated successfully' };
   }
-
+  
+  
   /** 🔹 Logout User (Invalidate JWT) */
   async logout(req: Request): Promise<{ message: string }> {
     try {

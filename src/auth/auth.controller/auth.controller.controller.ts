@@ -72,14 +72,17 @@ export class AuthController {
   }
 
   /** 🔹 Update Address (Authenticated Users) */
-  @UseGuards(JwtAuthGuard)
   @Patch('address-setup')
+  @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Update user address' })
-  @ApiResponse({ status: 200, description: 'Address updated successfully' })
   async updateAddress(@Request() req, @Body() dto: AddressSetupDto) {
-    return this.authService.updateAddress(req.user.id, dto);
+    //console.log('req.user:', req.user);
+    const userId = req.user._id || req.user.id;
+    return this.authService.updateAddress(userId, dto);
+    
   }
+  
+  
 
   /** 🔹 Logout User (Invalidate JWT) */
   @UseGuards(JwtAuthGuard)

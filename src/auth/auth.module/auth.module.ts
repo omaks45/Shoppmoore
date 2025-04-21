@@ -1,18 +1,17 @@
 /* eslint-disable prettier/prettier */
-// src/auth/auth.module.ts
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-
 import { AuthController } from '../auth.controller/auth.controller.controller';
 import { AuthService } from '../auth.service/auth.service.service';
 import { JwtStrategy } from '../jwt.strategy';
 import { User, UserSchema } from '../auth.schema';
 import { JwtAuthGuard } from '../auth.guard';
-
 import { NotificationsModule } from '../../notifications/notifications.module';
+import { TokenBlacklistGuard } from '../../common/guards/token-blacklist.guard';
+
 import { UserModule } from '../../users/users.module'; //Fix path & circular import
 
 @Module({
@@ -32,7 +31,7 @@ import { UserModule } from '../../users/users.module'; //Fix path & circular imp
     NotificationsModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
-  exports: [AuthService, JwtStrategy, PassportModule, JwtAuthGuard], //Needed in user module or guards
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, TokenBlacklistGuard],
+  exports: [AuthService, JwtStrategy, PassportModule, JwtAuthGuard, TokenBlacklistGuard], //Needed in user module or guards
 })
 export class AuthModule {}

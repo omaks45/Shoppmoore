@@ -4,9 +4,8 @@ import { Document } from 'mongoose';
 
 export enum UserRole {
   ADMIN = 'admin',
- // USER = 'user',
   BUYER = 'buyer',
-  //SUPER_ADMIN = 'super-admin',
+
 }
 
 @Schema({ timestamps: true })
