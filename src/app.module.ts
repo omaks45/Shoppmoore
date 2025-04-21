@@ -15,6 +15,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { CacheInterceptor } from '@nestjs/cache-manager';
 import { CategoryModule } from './category/category.module';
 import { OrderModule } from './order/order.module';
+import { CartModule } from './cart/cart.module';
 
 
 @Module({
@@ -29,6 +30,7 @@ import { OrderModule } from './order/order.module';
     CloudinaryModule,
     CategoryModule,
     OrderModule,
+    CartModule,
   ],
   controllers: [AppController],
   providers: [
