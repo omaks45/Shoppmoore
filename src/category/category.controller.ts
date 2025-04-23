@@ -25,16 +25,16 @@ import {
   ApiConsumes,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/auth.guard';
+import { TokenBlacklistGuard } from '../common/guards/token-blacklist.guard';
 import { Express } from 'express';
-import { TokenBlacklistGuard } from '../common/guards/token-blacklist.guard'
 
-@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
 @ApiTags('Categories')
 @Controller('categories')
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Post()
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @UseInterceptors(FileInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -93,6 +93,7 @@ export class CategoryController {
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @UseInterceptors(FileInterceptor('image'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
@@ -110,6 +111,7 @@ export class CategoryController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({
     summary: 'Delete a category (Admin only)',
     description: 'Allows an admin to delete a category permanently. This should be done with caution.',

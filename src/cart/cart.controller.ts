@@ -1,16 +1,16 @@
 /* eslint-disable prettier/prettier */
 import {
-  Controller, Post, Body, Get, Delete, Patch, UseGuards, Req
+  Controller, Post, Body, Get, Delete, Patch,   Req //UseGuards,
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartItemDto } from './dto/update-cart-item.dto';
 import { RemoveFromCartDto } from './dto/remove-from-cart.dto';
 import { ApiBearerAuth, ApiTags, ApiOperation } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/auth.guard';
+//import { JwtAuthGuard } from '../auth/auth.guard';
 
 
-@UseGuards(JwtAuthGuard)
+//@UseGuards(JwtAuthGuard)
 @ApiTags('Cart')
 @ApiBearerAuth()
 @Controller('cart')
