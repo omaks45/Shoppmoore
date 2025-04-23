@@ -126,7 +126,7 @@ export class AuthService implements OnModuleInit {
 
     const token = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '10m',
+      expiresIn: '20m',
     });
 
     return { message: 'Login successful', token };
