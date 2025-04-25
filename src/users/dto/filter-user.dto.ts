@@ -1,29 +1,18 @@
 /* eslint-disable prettier/prettier */
-/*
-    * @file filter-user.dto.ts
-    * @description DTO for filtering users in the UserService.
-    * @module filter-user.dto.ts
-    * @requires class-validator
-    * @requires class-transformer
-    * @requires swagger
-*/
-
-import { IsOptional, IsIn, IsNumberString } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+// filter-user.dto.ts
+import { IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class FilterUserDto {
-  @ApiPropertyOptional({ enum: ['admin', 'buyer'] })
   @IsOptional()
-  @IsIn(['admin', 'buyer'])
-  role?: string;
-
-  @ApiPropertyOptional({ default: 1 })
-  @IsOptional()
-  @IsNumberString()
+  @Type(() => Number) // Ensures string is casted to number
   page?: number;
 
-  @ApiPropertyOptional({ default: 10 })
   @IsOptional()
-  @IsNumberString()
+  @Type(() => Number)
   limit?: number;
+
+  @IsOptional()
+  @Type(() => Boolean)
+  isAdmin?: boolean;
 }
