@@ -1,9 +1,8 @@
 /* eslint-disable prettier/prettier */
-// user.service.ts
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { UserDocument, User } from '../auth/auth.schema';
+import { User, UserDocument } from '../auth/auth.schema';
 import { NotificationService } from '../notifications/notifications.service';
 import { FilterUserDto } from '../users/dto/filter-user.dto';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
@@ -17,8 +16,29 @@ export class UserService {
   ) {}
 
   private toEntity(doc: any): UserEntity {
-    const { _id, firstName, lastName, email, phoneNumber, role, isVerified, address, createdAt } = doc;
-    return { id: _id.toString(), firstName, lastName, email, phoneNumber, role, isVerified, address, createdAt };
+    const {
+      _id,
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      isAdmin,
+      isVerified,
+      address,
+      createdAt,
+    } = doc;
+
+    return {
+      id: _id.toString(),
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      isAdmin,
+      isVerified,
+      address,
+      createdAt,
+    };
   }
 
   async findAll(filter: FilterUserDto): Promise<UserEntity[]> {
@@ -36,7 +56,6 @@ export class UserService {
     return this.toEntity(doc);
   }
 
-  // NEW: Return the actual Mongoose document (not .lean())
   async findRawById(id: string): Promise<UserDocument> {
     const user = await this.userModel.findById(id);
     if (!user) throw new NotFoundException('User not found');
@@ -46,16 +65,19 @@ export class UserService {
   async updateProfile(id: string, dto: UpdateUserDto): Promise<UserEntity> {
     const doc = await this.userModel.findByIdAndUpdate(id, dto, { new: true }).lean();
     if (!doc) throw new NotFoundException('User not found');
+
     await this.notificationService.sendNotification({
       message: `Your profile was updated`,
       userId: id,
     });
+
     return this.toEntity(doc);
   }
 
   async remove(id: string): Promise<void> {
     const doc = await this.userModel.findByIdAndDelete(id).lean();
     if (!doc) throw new NotFoundException('User not found');
+
     await this.notificationService.sendNotification({
       message: `User with ID ${id} has been deleted.`,
       userId: id,

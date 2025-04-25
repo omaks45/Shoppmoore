@@ -30,13 +30,14 @@ import { VerifyDto } from '../dto/verify.dto';
 import { ResendOtpDto } from '../dto/resend-otp.dto';
 import { VerifyResetOtpDto } from '../dto/verify-reset-otp.dto';
 import { User, UserDocument } from '../auth.schema';
+import { AdminLoginDto } from '../dto/admin-login.dto';
 
 @ApiTags('Authentication') 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
-    @InjectModel(User.name) private readonly userModel: Model<UserDocument>, // ✅ Inject UserModel
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>, //Inject UserModel
   ) {}
 
   /** 🔹 User Signup (Defaults to "Buyer" role) */
@@ -63,6 +64,16 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+
+  /** 🔹 Admin Login */
+  @Post('admin-login')
+  @ApiOperation({ summary: 'Admin Login (Only admins allowed)' })
+  @ApiResponse({ status: 201, description: 'Admin login successful' })
+  @ApiResponse({ status: 401, description: 'Invalid credentials or not an admin' })
+  async adminLogin(@Body() dto: AdminLoginDto) {
+    return this.authService.adminLogin(dto);
+  }
+   
   /** Get User Profile (Requires Authentication) */
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Get('profile')

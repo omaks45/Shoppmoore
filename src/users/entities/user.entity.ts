@@ -2,15 +2,8 @@
 /**
  * * @file user.entity.ts
  * * @description User entity for the UserService.
- * * @module user.entity.ts
- * * @requires class-validator
- * * @requires class-transformer
- * * * @requires swagger
- * * @requires auth.schema
  */
 import { ApiProperty } from '@nestjs/swagger';
-import { UserRole } from '../../auth/auth.schema'
-
 
 export class UserEntity {
   @ApiProperty()
@@ -28,8 +21,11 @@ export class UserEntity {
   @ApiProperty()
   phoneNumber: string;
 
-  @ApiProperty({ enum: UserRole })
-  role: UserRole;
+  @ApiProperty({
+    example: false,
+    description: 'Set to true for Admin, false for Buyer',
+  })
+  isAdmin: boolean;
 
   @ApiProperty()
   isVerified: boolean;

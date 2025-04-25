@@ -5,12 +5,17 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthService } from '../auth/auth.service/auth.service.service';
 import { ConfigService } from '@nestjs/config';
 
+interface JwtValidatedUser {
+  _id: string;
+  email: string;
+  role: 'admin' | 'buyer';
+}
+
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     @Inject(forwardRef(() => AuthService))
     private readonly authService: AuthService,
-
     private readonly configService: ConfigService
   ) {
     super({
@@ -20,23 +25,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: any) {
+  async validate(payload: any): Promise<JwtValidatedUser> {
     const user = await this.authService.getUserById(payload.userId);
 
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
 
-    if (user.role === 'buyer' && !user.isVerified) {
+    if (!user.isAdmin && !user.isVerified) {
       throw new UnauthorizedException('Please verify your email to continue');
     }
-    // console.log('User from JWT strategy:', user);
-
 
     return {
-      _id: user._id,
+      _id: user._id.toString(), //Fix applied here
       email: user.email,
-      role: user.role, //This is required
-    }; // includes _id, role, etc.
+      role: user.isAdmin ? 'admin' : 'buyer',
+    };
   }
 }

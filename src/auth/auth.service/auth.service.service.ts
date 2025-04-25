@@ -11,7 +11,7 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
-import { User, UserDocument, UserRole } from '../auth.schema';
+import { User, UserDocument } from '../auth.schema';
 import { SignupDto } from '../dto/signup.dto';
 import { CreateAdminDto } from '../dto/create-admin.dto';
 import { LoginDto } from '../dto/login.dto';
@@ -27,6 +27,7 @@ import { Request } from 'express';
 import { VerifyDto } from '../dto/verify.dto';
 import { ResendOtpDto } from '../dto/resend-otp.dto';
 import { VerifyResetOtpDto } from '../dto/verify-reset-otp.dto';
+import { AdminLoginDto } from '../dto/admin-login.dto';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -84,6 +85,7 @@ export class AuthService implements OnModuleInit {
   }
 
   /**Create Admin (Restricted Access) */
+ 
   async createAdmin(dto: CreateAdminDto): Promise<{ message: string; newAdmin: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password } = dto;
 
@@ -92,45 +94,76 @@ export class AuthService implements OnModuleInit {
     }
 
     const hashedPassword = await PasswordUtils.hashPassword(password);
+
     const newAdmin = new this.userModel({
       firstName,
       lastName,
       email,
       phoneNumber,
       password: hashedPassword,
-      role: UserRole.ADMIN,
-      isVerified: true, 
+      isAdmin: true,           //Mark as admin
+      isVerified: true,        // Auto-verify admins
     });
 
     await newAdmin.save();
     await this.notificationService.sendAdminCreationEmail(email);
 
     return { message: 'Admin created successfully', newAdmin };
-  }
+  } 
 
 
   /** 🔹 Login */
   async login(dto: LoginDto): Promise<{ message: string; token: string }> {
     const { email, password } = dto;
     const user = await this.userModel.findOne({ email });
-
+  
     if (!user || !(await PasswordUtils.comparePasswords(password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
-
+  
     const payload: JwtPayload = {
       userId: user._id.toString(),
       email: user.email,
-      role: user.role as 'admin' | 'buyer',
+      role: user.isAdmin ? 'admin' : 'buyer', //derive role from isAdmin
     };
-
+  
     const token = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '20m',
+      expiresIn: '2days',
     });
-
+  
     return { message: 'Login successful', token };
   }
+  
+
+    // admin login 
+  async adminLogin(dto: AdminLoginDto): Promise<{ message: string; token: string }> {
+    const { email, password } = dto;
+    const user = await this.userModel.findOne({ email });
+    
+    if (!user || !user.isAdmin) {
+       throw new UnauthorizedException('Access denied: Admins only');
+    }
+    
+    const isPasswordValid = await PasswordUtils.comparePasswords(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    
+    const payload: JwtPayload = {
+      userId: user._id.toString(),
+      email: user.email,
+      role: 'admin',
+    };
+    
+    const token = this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '2days',
+    });
+    
+    return { message: 'Admin login successful', token };
+  }
+    
 
   /** 🔹 Update User Address */
   async updateAddress(userId: string, dto: AddressSetupDto): Promise<{ message: string }> {
