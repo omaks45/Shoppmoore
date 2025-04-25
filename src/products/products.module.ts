@@ -12,9 +12,12 @@ import { Product, ProductSchema } from './product.schema';
 import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { AuthModule } from '../auth/auth.module/auth.module';
+import { CategorySchema } from '../category/schema/category.schema';
 @Module({
   imports: [
-    MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema }]),
+    MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema },
+      { name: 'Category', schema: CategorySchema }, 
+    ]),
     CloudinaryModule,
     CacheModule.register(),
     forwardRef(() => AuthModule), //Use forwardRef to resolve circular dependency

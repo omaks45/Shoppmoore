@@ -160,6 +160,18 @@ export class AuthService implements OnModuleInit {
   
     return { message: 'Address updated successfully' };
   }
+
+   /** 🔹 Get User Address */
+  async getUserAddress(userId: string): Promise<{ address: UserDocument['address'] }> {
+    const user = await this.userModel.findById(userId).select('address');
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return { address: user.address };
+  }
+
   
   
   /** 🔹 Logout User (Invalidate JWT) */

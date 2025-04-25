@@ -14,6 +14,7 @@ import { CreateProductDto} from '../products/dto/create-product.dto';
 import { UpdateProductDto } from '../products/dto/update-product.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Cache } from 'cache-manager';
+import { CategoryDocument } from '../category/schema/category.schema'
 
 /**
  * ProductService
@@ -30,6 +31,7 @@ export class ProductService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     private cloudinaryService: CloudinaryService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
+    @InjectModel('Category') private readonly categoryModel: Model<CategoryDocument>, 
   ) {}
 
   async create(
@@ -61,25 +63,67 @@ export class ProductService {
   }
 
 
-  async findAll(page = 1, limit = 10): Promise<{ data: Product[]; total: number }> {
-    const cacheKey = `products:all:page:${page}:limit:${limit}`;
-    const cached = await this.cacheManager.get<{ data: Product[]; total: number }>(cacheKey);
+  /// Find all products with optional search and pagination
+  /// This method retrieves all products from the database, with optional search functionality and pagination.
+  async findAll(
+    page = 1,
+    limit = 10,
+    search?: string,
+  ): Promise<{
+    data: Product[];
+    metadata: {
+      totalItems: number;
+      totalPages: number;
+      currentPage: number;
+      pageSize: number;
+    };
+  }> {
+    const query: any = { isDeleted: false };
+  
+    // Add case-insensitive search if provided
+    if (search) {
+      query.name = { $regex: new RegExp(search, 'i') };
+    }
+  
+    const skip = (page - 1) * limit;
+    const cacheKey = `products:all:page:${page}:limit:${limit}:search:${search || 'none'}`;
+  
+    const cached = await this.cacheManager.get<{
+      data: Product[];
+      metadata: any;
+    }>(cacheKey);
     if (cached) return cached;
   
-    const query = { isDeleted: false }; //Filter out soft-deleted products
+    const [data, totalItems] = await Promise.all([
+      this.productModel
+        .find(query)
+        .populate('category', 'name')
+        .skip(skip)
+        .limit(limit)
+        .sort({ createdAt: -1 })
+        .exec(),
   
-    const total = await this.productModel.countDocuments(query);
-    const data = await this.productModel
-      .find(query)
-      .skip((page - 1) * limit)
-      .limit(limit)
-      .sort({ createdAt: -1 })
-      .exec();
+      this.productModel.countDocuments(query),
+    ]);
   
-    await this.cacheManager.set(cacheKey, { data, total }, 60); // cache per page/limit combo
-    return { data, total };
-  }
+    const totalPages = Math.ceil(totalItems / limit);
+    const response = {
+      data,
+      metadata: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
   
+    await this.cacheManager.set(cacheKey, response, 60); // Cache for 60 seconds
+    return response;
+  }  
+
+
+  /// Find a product by its ID
+  /// This method retrieves a product from the database and caches it for future requests.
   async findById(id: string): Promise<Product> {
     const cacheKey = `product:${id}`;
     const cached = await this.cacheManager.get<Product>(cacheKey);
@@ -168,5 +212,52 @@ export class ProductService {
     return { message: 'Product successfully soft-deleted' };
   }
   
-
+  // finds a product by its category ID
+  // This method retrieves all products that belong to a specific category.
+  async findByCategory(
+    categoryId?: string,
+    page = 1,
+    limit = 10,
+  ): Promise<{
+    data: Product[];
+    metadata: {
+      totalItems: number;
+      totalPages: number;
+      currentPage: number;
+      pageSize: number;
+    };
+  }> {
+    const filter: any = {
+      isDeleted: false,
+      isAvailable: true,
+    };
+  
+    if (categoryId) {
+      filter.category = categoryId;
+    }
+  
+    const skip = (page - 1) * limit;
+  
+    const [data, totalItems] = await Promise.all([
+      this.productModel
+        .find(filter)
+        .populate('category', 'name')
+        .skip(skip)
+        .limit(limit)
+        .exec(),
+      this.productModel.countDocuments(filter),
+    ]);
+  
+    const totalPages = Math.ceil(totalItems / limit);
+  
+    return {
+      data,
+      metadata: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
+  }  
 }

@@ -11,8 +11,10 @@ import {
   Query,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
 import { Request as ExpressRequest } from 'express';
+import { AuthenticatedRequest } from '../custom-request.interface';
+import { Model } from 'mongoose';
+//import { Request as ExpressRequest } from 'express';
 import { AuthService } from '../auth.service/auth.service.service';
 import { SignupDto } from '../dto/signup.dto';
 import { CreateAdminDto } from '../dto/create-admin.dto';
@@ -81,6 +83,18 @@ export class AuthController {
     return this.authService.updateAddress(userId, dto);
     
   }
+
+  /** 🔹 Get User Address (Authenticated Users) */
+  @UseGuards(JwtAuthGuard)
+  @Get('address')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get authenticated user/buyer address' })
+  @ApiResponse({ status: 200, description: 'Returns user address' })
+  async getAddress(@Request() req: AuthenticatedRequest) {
+    const userId = req.user._id.toString(); 
+    return this.authService.getUserAddress(userId);
+  }
+  
   
   
 
