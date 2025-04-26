@@ -24,13 +24,14 @@ import { JwtAuthGuard } from '../auth.guard';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { ForgotPasswordDto } from '../dto/forgot-password.dto';
 import { ResetPasswordDto } from '../dto/set-new-password.dto';
-import { RolesGuard } from 'src/common/guards/roles.guard';
+//import { RolesGuard } from 'src/common/guards/roles.guard';
 import { ApiKeyGuard } from 'src/common/guards/api-key.guard';
 import { VerifyDto } from '../dto/verify.dto';
 import { ResendOtpDto } from '../dto/resend-otp.dto';
 import { VerifyResetOtpDto } from '../dto/verify-reset-otp.dto';
 import { User, UserDocument } from '../auth.schema';
 import { AdminLoginDto } from '../dto/admin-login.dto';
+import { TokenBlacklistGuard } from '../../common/guards/token-blacklist.guard';
 
 @ApiTags('Authentication') 
 @Controller('auth')
@@ -75,7 +76,7 @@ export class AuthController {
   }
    
   /** Get User Profile (Requires Authentication) */
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Get('profile')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get authenticated user profile' })
@@ -86,7 +87,7 @@ export class AuthController {
 
   /** 🔹 Update Address (Authenticated Users) */
   @Patch('address-setup')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiBearerAuth()
   async updateAddress(@Request() req, @Body() dto: AddressSetupDto) {
     //console.log('req.user:', req.user);
@@ -96,7 +97,7 @@ export class AuthController {
   }
 
   /** 🔹 Get User Address (Authenticated Users) */
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Get('address')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get authenticated user/buyer address' })

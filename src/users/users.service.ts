@@ -41,13 +41,38 @@ export class UserService {
     };
   }
 
-  async findAll(filter: FilterUserDto): Promise<UserEntity[]> {
+  async findAll(filter: FilterUserDto): Promise<{
+    data: UserEntity[];
+    metadata: {
+      totalItems: number;
+      totalPages: number;
+      currentPage: number;
+      pageSize: number;
+    };
+  }> {
     const page = Number(filter.page) || 1;
     const limit = Number(filter.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const docs = await this.userModel.find().skip(skip).limit(limit).lean();
-    return docs.map(d => this.toEntity(d));
+    // total count (for metadata)
+    const totalItems = await this.userModel.countDocuments();
+    const docs = await this.userModel
+      .find()
+      .skip(skip)
+      .limit(limit)
+      .lean();
+
+    const totalPages = Math.ceil(totalItems / limit);
+
+    return {
+      data: docs.map(d => this.toEntity(d)),
+      metadata: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
   }
 
   async findById(id: string): Promise<UserEntity> {

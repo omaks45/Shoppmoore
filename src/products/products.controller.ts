@@ -39,6 +39,7 @@ import {
   ApiOkResponse,
   ApiParam,
 } from '@nestjs/swagger';
+import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 //import { Product } from './product.schema';
 
 
@@ -49,8 +50,9 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
    
-  @UseGuards(JwtAuthGuard)
+
   @Post()
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @UseInterceptors(FileInterceptor('image'))
   @HttpCode(HttpStatus.CREATED)
   @ApiConsumes('multipart/form-data')
@@ -128,7 +130,7 @@ export class ProductController {
   
 
    
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Get('stock-out')
   @ApiOperation({ summary: 'Get products that are out of stock (Admin only)' })
   @ApiQuery({ name: 'category', required: false, description: 'Filter by category ID' })
@@ -202,7 +204,7 @@ export class ProductController {
   
 
    
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Patch(':id')
   //@Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('image'))
@@ -282,7 +284,7 @@ export class ProductController {
   
 
    
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Soft delete a product (Admin only)' })
   @ApiParam({

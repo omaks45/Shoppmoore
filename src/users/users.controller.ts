@@ -14,7 +14,10 @@ import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
-  ApiResponse,
+  ApiQuery,
+  ApiOkResponse,
+  getSchemaPath,
+ // ApiResponse,
   //ApiResponse,
 } from '@nestjs/swagger';
 import { UserService } from '../users/users.service';
@@ -26,6 +29,7 @@ import { JwtAuthGuard } from '../auth/auth.guard';
 //import { Roles } from '../common/decorators/roles.decorator';
 //import { UserRole } from 'src/common/enums/roles.enum';
 import { User } from '../common/decorators/user.decorator'; //New decorator
+import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 //import { JwtPayload } from 'src/auth/utils/jwt-payload.interface';
 
 
@@ -35,45 +39,50 @@ import { User } from '../common/decorators/user.decorator'; //New decorator
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  
-  //Auth-check: Get current authenticated user's raw document
-  @Get('me')
-  @UseGuards(JwtAuthGuard)
-  @ApiOperation({ summary: 'Get current authenticated user' })
-  @ApiResponse({ status: 200, description: 'Authenticated user returned' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  getProfile(@User() user) {
-    console.log('Authenticated user from JWT:', user);
-    return user;
-  }
-  
-  /*
-  //Check authentication
-  @Get('check-auth')
-  @UseGuards(JwtAuthGuard)
-  checkAuth(@User() user) {
-    console.log('Authenticated user:', user);
-    return {
-      message: 'You are authenticated',
-      user,
-    };
-  }
-  */
-
-  //Get all users
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Get all users (Admin dashboard)' })
+  @ApiQuery({ name: 'page', required: false, example: 1, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Items per page' })
+  @ApiOkResponse({
+    description: 'List of users with pagination metadata',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: { $ref: getSchemaPath(UserEntity) },
+        },
+        metadata: {
+          type: 'object',
+          properties: {
+            totalItems: { type: 'number', example: 42 },
+            totalPages: { type: 'number', example: 5 },
+            currentPage: { type: 'number', example: 1 },
+            pageSize: { type: 'number', example: 10 },
+          },
+        },
+      },
+    },
+  })
   async findAll(
     @Query() filter: FilterUserDto,
-    @User() user: { userId: string; role: string }
-  ): Promise<UserEntity[]> {
-      console.log('Admin requesting users list:', user.userId);
-      return this.userService.findAll(filter);
+    @User() user: { userId: string; isAdmin: boolean },
+  ): Promise<{
+    data: UserEntity[];
+    metadata: {
+      totalItems: number;
+      totalPages: number;
+      currentPage: number;
+      pageSize: number;
+    };
+  }> {
+    console.log('Admin requesting users list:', user.userId);
+    return this.userService.findAll(filter);
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Get a user by ID (Admin dashboard)' })
   async findOne(
     @Param('id') id: string
@@ -83,7 +92,7 @@ export class UserController {
 
 
   @Put(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Update user details (Admin dashboard)' })
   async update(
     @Param('id') id: string,
@@ -95,7 +104,7 @@ export class UserController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Delete user (Admin dashboard)' })
   async remove(
     @Param('id') id: string,

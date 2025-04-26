@@ -53,6 +53,39 @@ export class AuthService implements OnModuleInit {
   async getUserById(userId: string): Promise<UserDocument | null> {
     return this.userModel.findById(userId); // no lean()
   }
+
+  //**Validate User Credentials (for login) */
+
+  private async validateUserOrThrow(email: string, password: string): Promise<UserDocument> {
+    const user = await this.userModel.findOne({ email });
+    
+    if (!user || !(await PasswordUtils.comparePasswords(password, user.password))) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+  
+    return user;
+  }
+
+
+  //**Generate JWT Token */
+  private generateToken(payload: JwtPayload): string {
+    return this.jwtService.sign(payload, {
+      secret: this.configService.get<string>('JWT_SECRET'),
+      expiresIn: '2days',
+    });
+  }
+  
+  //**Create JWT Payload */
+  private createPayload(user: UserDocument, role?: 'admin' | 'buyer'): JwtPayload {
+    return {
+      userId: user._id.toString(),
+      email: user.email,
+      role: role || (user.isAdmin ? 'admin' : 'buyer'), 
+    };
+  }
+  
+  
+  
   
 
   /** 🔹 User Signup (Default Role: Buyer) */
@@ -111,59 +144,40 @@ export class AuthService implements OnModuleInit {
     return { message: 'Admin created successfully', newAdmin };
   } 
 
-
-  /** 🔹 Login */
-  async login(dto: LoginDto): Promise<{ message: string; token: string }> {
+   /**Normal User Login */
+   async login(dto: LoginDto): Promise<{ message: string; token: string }> {
     const { email, password } = dto;
-    const user = await this.userModel.findOne({ email });
+    const user = await this.validateUserOrThrow(email, password);
   
-    if (!user || !(await PasswordUtils.comparePasswords(password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+    if (user.isAdmin) {
+      throw new UnauthorizedException('Access denied: Admins must use the admin login endpoint');
     }
   
-    const payload: JwtPayload = {
-      userId: user._id.toString(),
-      email: user.email,
-      role: user.isAdmin ? 'admin' : 'buyer', //derive role from isAdmin
-    };
-  
-    const token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '2days',
-    });
+    const payload = this.createPayload(user, 'buyer');
+    const token = this.generateToken(payload);
   
     return { message: 'Login successful', token };
   }
   
 
+  
+
     // admin login 
   async adminLogin(dto: AdminLoginDto): Promise<{ message: string; token: string }> {
     const { email, password } = dto;
-    const user = await this.userModel.findOne({ email });
+    const user = await this.validateUserOrThrow(email, password);
     
-    if (!user || !user.isAdmin) {
-       throw new UnauthorizedException('Access denied: Admins only');
+    if (!user.isAdmin) {
+      throw new UnauthorizedException('Access denied: Admins only');
     }
     
-    const isPasswordValid = await PasswordUtils.comparePasswords(password, user.password);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-    
-    const payload: JwtPayload = {
-      userId: user._id.toString(),
-      email: user.email,
-      role: 'admin',
-    };
-    
-    const token = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_SECRET'),
-      expiresIn: '2days',
-    });
+    const payload = this.createPayload(user, 'admin');
+    const token = this.generateToken(payload);
     
     return { message: 'Admin login successful', token };
   }
     
+
 
   /** 🔹 Update User Address */
   async updateAddress(userId: string, dto: AddressSetupDto): Promise<{ message: string }> {

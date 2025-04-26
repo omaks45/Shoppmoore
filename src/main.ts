@@ -42,17 +42,12 @@ async function bootstrap() {
 
   // Graceful shutdown hooks
   process.on('SIGINT', async () => {
-    logger.warn('💡 SIGINT received. Shutting down...');
+    logger.warn('SIGINT received. Shutting down...');
     await app.close();
     process.exit(0);
   });
 
-  process.on('SIGTERM', async () => {
-    logger.warn('💡 SIGTERM received. Shutting down...');
-    await app.close();
-    process.exit(0);
-  });
-
+ 
   // Disable console logs in production
   if (process.env.NODE_ENV === 'production') {
     console.log = () => {};
