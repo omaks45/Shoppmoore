@@ -16,6 +16,7 @@ import { CacheInterceptor } from '@nestjs/cache-manager';
 import { CategoryModule } from './category/category.module';
 import { OrderModule } from './order/order.module';
 import { CartModule } from './cart/cart.module';
+import { ReviewsModule } from './reviews/reviews.module';
 
 
 @Module({
@@ -31,6 +32,7 @@ import { CartModule } from './cart/cart.module';
     CategoryModule,
     OrderModule,
     CartModule,
+    ReviewsModule,
   ],
   controllers: [AppController],
   providers: [
