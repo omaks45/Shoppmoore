@@ -10,9 +10,6 @@ async function bootstrap() {
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
 
-  // Enable CORS
-  app.enableCors();
-
   // Global Validation Pipes
   app.useGlobalPipes(
     new ValidationPipe({
@@ -22,6 +19,16 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  //Automatically configure CORS
+  const allowedOrigins = (configService.get<string>('ALLOWED_ORIGINS') || '')
+    .split(',')
+    .map(origin => origin.trim());
+
+  app.enableCors({
+    origin: allowedOrigins,
+    credentials: true,
+  });
 
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
@@ -38,7 +45,7 @@ async function bootstrap() {
   // Start the server
   const port = process.env.PORT || configService.get<number>('PORT') || 5000;
   await app.listen(port);
-  logger.log(`🚀 Server is running on: ${await app.getUrl()}`);
+  logger.log(`Server is running on: ${await app.getUrl()}`);
 
   // Graceful shutdown hooks
   process.on('SIGINT', async () => {
@@ -47,14 +54,12 @@ async function bootstrap() {
     process.exit(0);
   });
 
- 
   // Disable console logs in production
   if (process.env.NODE_ENV === 'production') {
     console.log = () => {};
     console.debug = () => {};
     console.warn = () => {};
   }
-
 }
 
 bootstrap();

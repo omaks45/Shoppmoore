@@ -1,22 +1,41 @@
 /* eslint-disable prettier/prettier */
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import * as nodemailer from 'nodemailer';
+import { NotificationGateway } from '../notifications/notification.gateway';
+import { credential } from 'firebase-admin';
+import { getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
+import admin from 'firebase-admin';
 
 @Injectable()
-export class NotificationService {
+export class NotificationService implements OnModuleInit {
   private transporter;
 
-  constructor() {
+  constructor(private readonly notificationGateway: NotificationGateway) {
     this.transporter = nodemailer.createTransport({
-      service: process.env.EMAIL_SERVICE, // e.g., 'gmail'
+      service: process.env.EMAIL_SERVICE,
       auth: {
-        user: process.env.EMAIL_USER,     // your Gmail address
-        pass: process.env.EMAIL_PASS,     // your App Password
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
       },
     });
   }
 
-  /** Basic in-app notification logging */
+  /** Initialize Firebase Admin SDK after app starts */
+  onModuleInit() {
+    if (!getApps().length) {
+      admin.initializeApp({
+        credential: credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+        }),
+      });
+      console.log('Firebase initialized');
+    }
+  }
+
+  /** In-App notification (logging) */
   sendNotification({ message, userId }: { message: string; userId: string }) {
     console.log(`Notification sent to user ${userId}: ${message}`);
   }
@@ -47,7 +66,7 @@ export class NotificationService {
     await this.sendEmail(email, subject, '', html);
   }
 
-  /** Notify on Admin Account Creation */
+  /** Notify Admin on New Account */
   async sendAdminCreationEmail(email: string) {
     const subject = 'Admin Account Created';
     const html = `<p>Your admin account has been successfully created.</p>`;
@@ -66,7 +85,7 @@ export class NotificationService {
     await this.sendEmail(to, subject, '', html);
   }
 
-  /** Order Confirmation */
+  /** Order Confirmation Email */
   async sendOrderConfirmationEmail(user: any, order: any) {
     const subject = 'Your Order Has Been Confirmed!';
     const html = `
@@ -75,8 +94,8 @@ export class NotificationService {
       Thank you for shopping with us! Your order <strong>#${order._id}</strong> has been confirmed and is now being processed.<br><br>
 
       🛒 <strong>Order Summary:</strong><br>
-      • Items: ${order.items.map((item) => `${item.productName} x${item.quantity}`).join(', ')}<br>
-      • Total Amount: N${order.totalAmount}<br>
+      • Items: ${order.items.map((item: any) => `${item.productName} x${item.quantity}`).join(', ')}<br>
+      • Total Amount: ₦${order.totalAmount}<br>
       • Estimated Delivery: ${order.estimatedDeliveryDate || 'N/A'}<br><br>
 
       You can track your order anytime from your profile page.<br><br>
@@ -89,7 +108,7 @@ export class NotificationService {
     await this.sendEmail(user.email, subject, '', html);
   }
 
-  /** Order Delivered */
+  /** Order Delivered Email */
   async sendOrderDeliveredEmail(user: any, order: any) {
     const subject = 'Your Order Has Been Delivered!';
     const html = `
@@ -98,7 +117,7 @@ export class NotificationService {
       Great news! Your order <strong>#${order._id}</strong> has been successfully delivered.<br><br>
 
       🛍 <strong>Order Summary:</strong><br>
-      • Items: ${order.items.map((item) => `${item.productName} x${item.quantity}`).join(', ')}<br>
+      • Items: ${order.items.map((item: any) => `${item.productName} x${item.quantity}`).join(', ')}<br>
       • Delivered On: ${new Date().toLocaleDateString()}<br><br>
 
       We hope you love your purchase!<br>
@@ -110,7 +129,7 @@ export class NotificationService {
     await this.sendEmail(user.email, subject, '', html);
   }
 
-  /** Order Cancelled */
+  /** Order Cancelled Email */
   async sendOrderCancelledEmail(user: any, order: any) {
     const subject = 'Your Order Has Been Cancelled';
     const html = `
@@ -119,8 +138,8 @@ export class NotificationService {
       We're sorry to inform you that your order <strong>#${order._id}</strong> has been cancelled.<br><br>
 
       🛍 <strong>Order Summary:</strong><br>
-      • Items: ${order.items.map((item) => `${item.productName} x${item.quantity}`).join(', ')}<br>
-      • Total Amount: $${order.totalAmount}<br><br>
+      • Items: ${order.items.map((item: any) => `${item.productName} x${item.quantity}`).join(', ')}<br>
+      • Total Amount: ₦${order.totalAmount}<br><br>
 
       If this was a mistake or you’d like to reorder, you can visit your profile and try again.<br><br>
 
@@ -130,5 +149,31 @@ export class NotificationService {
       The Shoppmoore Team
     `;
     await this.sendEmail(user.email, subject, '', html);
+  }
+
+  /** New Review Notification (WebSocket + Firebase Push) */
+  async notifyNewReview(review: any) {
+    // 1. Emit via WebSocket
+    this.notificationGateway.sendNewReviewNotification(review);
+
+    // 2. Push notification via Firebase
+    const payload = {
+      notification: {
+        title: 'New Review Posted',
+        body: review.content.substring(0, 50) + '...',
+      },
+      data: {
+        type: 'new_review',
+        reviewId: review._id.toString(),
+      },
+      topic: 'admin_notifications',
+    };
+
+    try {
+      await getMessaging().send(payload);
+      console.log('Firebase Notification Sent Successfully');
+    } catch (err) {
+      console.error('Firebase Notification Error:', err);
+    }
   }
 }
