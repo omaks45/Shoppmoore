@@ -20,15 +20,27 @@ async function bootstrap() {
     }),
   );
 
-  //Automatically configure CORS
-  const allowedOrigins = (configService.get<string>('ALLOWED_ORIGINS') || '')
+  // Automatically configure CORS
+  const nodeEnv = configService.get<string>('NODE_ENV');
+  const allowedOriginsFromEnv = (configService.get<string>('ALLOWED_ORIGINS') || '')
     .split(',')
-    .map(origin => origin.trim());
+    .map(origin => origin.trim().replace(/\/$/, '')); // clean up trailing slash
 
-  app.enableCors({
-    origin: allowedOrigins,
+  const corsOptions: any = {
+    origin: allowedOriginsFromEnv,
     credentials: true,
-  });
+  };
+
+  if (nodeEnv === 'development') {
+    // Allow localhost during development
+    corsOptions.origin = [
+      ...allowedOriginsFromEnv,
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ];
+  }
+
+  app.enableCors(corsOptions);
 
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
