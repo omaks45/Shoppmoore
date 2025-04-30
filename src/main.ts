@@ -31,6 +31,7 @@ async function bootstrap() {
     credentials: true,
   };
 
+  /**
   if (nodeEnv === 'development') {
     // Allow localhost during development
     corsOptions.origin = [
@@ -39,8 +40,11 @@ async function bootstrap() {
       'http://127.0.0.1:5173',
     ];
   }
-
-  app.enableCors(corsOptions);
+  */
+  app.enableCors({
+    origin: ['http://localhost:3000', 'http://127.0.0.1:5173'],
+    credentials: true,
+  });
 
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
@@ -48,7 +52,7 @@ async function bootstrap() {
     .setDescription('E-commerce API documentation')
     .setVersion('1.0')
     .addBearerAuth()
-    .addApiKey({ type: 'apiKey', in: 'header', name: 'x-api-key' }, 'x-api-key')
+    .addApiKey ({ type: 'apiKey', in: 'header', name: 'x-api-key' }, 'x-api-key')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
