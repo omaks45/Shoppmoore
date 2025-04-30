@@ -82,15 +82,16 @@ export class CategoryController {
     return this.categoryService.searchByName(keyword, Number(page), Number(limit));
   }
 
-  @Get(':id')
+  @Get(':identifier')
   @ApiOperation({
-    summary: 'Get a specific category by ID (Public)',
-    description: 'Returns a single category based on its MongoDB ID.',
+    summary: 'Get a specific category by ID or slug (Public)',
+    description: 'Returns a single category based on its MongoDB ID or slug.',
   })
-  @ApiParam({ name: 'id', description: 'MongoDB ObjectId of the category' })
-  findOne(@Param('id') id: string) {
-    return this.categoryService.findOne(id);
+  @ApiParam({ name: 'identifier', description: 'MongoDB ObjectId or slug of the category' })
+  findByIdOrSlug(@Param('identifier') identifier: string) {
+    return this.categoryService.findByIdOrSlug(identifier);
   }
+  
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
