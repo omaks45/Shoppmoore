@@ -4,11 +4,14 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
+import { PaystackSignatureMiddleware } from './middlewares/paystack.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   const configService = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
+
+  app.use('/payments/webhook', PaystackSignatureMiddleware);
 
   // Global Validation Pipes
   app.useGlobalPipes(

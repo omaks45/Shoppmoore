@@ -1,13 +1,16 @@
 /* eslint-disable prettier/prettier */
-
-/**
- * @file order.schema.ts
- * @description Order schema for MongoDB using Mongoose
- * @module order.schema.ts
- */
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
+
+export type OrderDocument = HydratedDocument<Order>;
+
+export enum OrderStatus {
+  PENDING = 'pending',
+  PAID = 'paid',
+  FAILED = 'failed',
+  CANCELLED = 'cancelled',
+  DELIVERED = 'delivered',
+}
 
 @Schema({ timestamps: true })
 export class Order {
@@ -15,26 +18,26 @@ export class Order {
   buyer: Types.ObjectId;
 
   @Prop([{
-    productId: { type: Types.ObjectId, ref: 'Product' },
-    quantity: Number,
+    productId: { type: Types.ObjectId, ref: 'Product', required: true },
+    quantity: { type: Number, required: true, min: 1 },
   }])
   orderItems: {
     productId: Types.ObjectId;
     quantity: number;
   }[];
 
-  @Prop()
+  @Prop({ required: true })
   totalPrice: number;
 
-  @Prop()
+  @Prop({ required: true })
   paymentMethod: string;
 
-  @Prop({ default: 'pending' })
-  status: string;
+  @Prop({ enum: OrderStatus, default: OrderStatus.PENDING })
+  status: OrderStatus;
 
   @Prop()
   estimatedDeliveryDate?: Date;
 }
 
-export type OrderDocument = HydratedDocument<Order>;
 export const OrderSchema = SchemaFactory.createForClass(Order);
+

@@ -176,4 +176,24 @@ export class NotificationService implements OnModuleInit {
       console.error('Firebase Notification Error:', err);
     }
   }
+
+  /** payment notification email */
+
+  async sendPaymentSuccessEmail(user: { email: string; firstName: string }, order: any) {
+    const subject = 'Your payment was successful!';
+    const html = `
+      <p>Hi ${user.firstName},</p>
+      <p>Thank you for your payment. Your order <b>#${order._id}</b> has been successfully paid for.</p>
+      <p>Order Summary:</p>
+      <ul>
+        ${order.items.map((item: any) => `<li>${item.quantity} x ${item.productName}</li>`).join('')}
+      </ul>
+      <p>Total: ₦${order.totalAmount}</p>
+      <p>Estimated Delivery: ${order.estimatedDeliveryDate ?? 'N/A'}</p>
+      <p>We’ll notify you once your order is shipped.</p>
+      <p>Thanks,<br/>The Shoppmoore Team</p>
+    `;
+    await this.sendEmail(user.email, subject, '', html);
+  }
+  
 }
