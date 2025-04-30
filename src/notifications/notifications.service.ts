@@ -151,12 +151,34 @@ export class NotificationService implements OnModuleInit {
     await this.sendEmail(user.email, subject, '', html);
   }
 
+  /** Payment Confirmation Email (Wallet Top-up or Purchase) */
+  async sendPaymentConfirmationEmail(user: any, paymentDetails: any) {
+    const subject = 'Payment Confirmation - Wallet Transaction';
+    const html = `
+      Hi ${user.firstName},<br><br>
+
+      🎉 Your payment was successful! Here are the transaction details:<br><br>
+
+      💳 <strong>Transaction ID:</strong> ${paymentDetails.transactionId}<br>
+      💰 <strong>Amount Paid:</strong> ₦${paymentDetails.amount}<br>
+      🕒 <strong>Date:</strong> ${new Date(paymentDetails.timestamp).toLocaleString()}<br>
+      💼 <strong>Payment Type:</strong> ${paymentDetails.type}<br><br>
+
+      Your wallet has been updated accordingly.<br>
+      You can view your transaction history in your profile.<br><br>
+
+      Thanks for using Shoppmoore Wallet!<br><br>
+
+      Best regards,<br>
+      The Shoppmoore Team
+    `;
+    await this.sendEmail(user.email, subject, '', html);
+  }
+
   /** New Review Notification (WebSocket + Firebase Push) */
   async notifyNewReview(review: any) {
-    // 1. Emit via WebSocket
     this.notificationGateway.sendNewReviewNotification(review);
 
-    // 2. Push notification via Firebase
     const payload = {
       notification: {
         title: 'New Review Posted',

@@ -151,4 +151,46 @@ export class OrderService {
       performedBy: adminId,
     });
   }
+
+    // order.service.ts
+
+async markOrderAsPaid(reference: string): Promise<void> {
+  const order = await this.orderModel.findOne({ reference });
+
+  if (!order) throw new NotFoundException('Order not found for reference');
+
+  order.isPaid = true;
+  order.status = 'paid'; // Optional: update order status too
+  await order.save();
+
+  await this.logModel.create({
+    orderId: order._id,
+    action: 'payment_successful',
+    performedBy: order.buyer,
+  });
+
+  // Optionally: send payment confirmation email
+  const populatedOrder = await this.orderModel
+    .findById(order._id)
+    .populate('buyer', 'firstName email')
+    .populate('orderItems.productId', 'name') as unknown as PopulatedOrder;
+
+  const orderToSend = {
+    _id: populatedOrder._id,
+    items: populatedOrder.orderItems.map((item: any) => ({
+      productName: item.productId.name,
+      quantity: item.quantity,
+    })),
+    totalAmount: populatedOrder.totalPrice,
+    estimatedDeliveryDate: populatedOrder.estimatedDeliveryDate || null,
+  };
+
+  const user = {
+    email: populatedOrder.buyer.email,
+    firstName: populatedOrder.buyer.firstName,
+  };
+
+  await this.notificationService.sendPaymentConfirmationEmail(user, orderToSend);
+}
+
 }

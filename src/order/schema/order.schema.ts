@@ -29,8 +29,16 @@ export class Order {
   @Prop()
   paymentMethod: string;
 
-  @Prop({ default: 'pending' })
+    // order.schema.ts
+  @Prop({ required: true, unique: true })
+  reference: string;
+
+  @Prop({ default: false })
+  isPaid: boolean;
+
+  @Prop({ enum: ['pending', 'paid', 'delivered', 'cancelled'], default: 'pending' })
   status: string;
+
 
   @Prop()
   estimatedDeliveryDate?: Date;
