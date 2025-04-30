@@ -16,6 +16,7 @@ import { slugify } from '../auth/utils/slugify';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { randomUUID } from 'crypto';
 import { Cache } from 'cache-manager';
+import { isValidObjectId } from 'mongoose';
 //import * as path from 'path';
 
 @Injectable()
@@ -71,7 +72,7 @@ export class CategoryService {
     return saved;
   }
 
-  // Example image validation method
+
   
 
   async findAll(page = 1, limit = 10) {
@@ -103,12 +104,25 @@ export class CategoryService {
     return result;
   }
 
-  async findOne(id: string) {
-    const category = await this.categoryModel.findById(id);
-    if (!category) throw new NotFoundException('Category not found');
+
+  async findByIdOrSlug(identifier: string): Promise<Category> {
+    let category: Category | null = null;
+  
+    if (isValidObjectId(identifier)) {
+      category = await this.categoryModel.findById(identifier);
+    } 
+  
+    if (!category) {
+      category = await this.categoryModel.findOne({ slug: identifier });
+    }
+  
+    if (!category) {
+      throw new NotFoundException('Category not found');
+    }
+  
     return category;
   }
-
+   
   async searchByName(keyword: string, page = 1, limit = 10) {
     const skip = (page - 1) * limit;
     const regex = new RegExp(keyword, 'i');

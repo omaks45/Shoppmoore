@@ -21,6 +21,7 @@ import { ProfileModule } from './profile/profile.module';
 import { PaymentModule } from './payment/payment.module';
 
 
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -37,6 +38,7 @@ import { PaymentModule } from './payment/payment.module';
     ReviewsModule,
     ProfileModule,
     PaymentModule
+
   ],
   controllers: [AppController],
   providers: [
