@@ -143,39 +143,45 @@ export class OrderService {
     });
   }
 
-  async markOrderAsPaid(reference: string): Promise<void> {
-    const order = await this.orderModel.findOne({ paymentReference: reference });
-    if (!order) throw new NotFoundException(`Order with reference ${reference} not found`);
+    // order.service.ts
 
-    order.status = OrderStatus.PAID;
-    await order.save();
+async markOrderAsPaid(reference: string): Promise<void> {
+  const order = await this.orderModel.findOne({ reference });
 
-    await this.logModel.create({
-      orderId: order._id,
-      action: OrderStatus.PAID,
-      performedBy: order.buyer,
-    });
+  if (!order) throw new NotFoundException('Order not found for reference');
 
-    const populatedOrder = await this.orderModel
-      .findById(order._id)
-      .populate('buyer', 'firstName email fullName')
-      .populate('orderItems.productId', 'name') as unknown as PopulatedOrder;
+  order.isPaid = true;
+  order.status = 'paid'; // Optional: update order status too
+  await order.save();
 
-    const orderToSend = {
-      _id: populatedOrder._id,
-      items: populatedOrder.orderItems.map((item: any) => ({
-        productName: item.productId.name,
-        quantity: item.quantity,
-      })),
-      totalAmount: populatedOrder.totalPrice,
-      estimatedDeliveryDate: populatedOrder.estimatedDeliveryDate || null,
-    };
+  await this.logModel.create({
+    orderId: order._id,
+    action: 'payment_successful',
+    performedBy: order.buyer,
+  });
 
-    const user = {
-      email: populatedOrder.buyer.email,
-      firstName: populatedOrder.buyer.firstName || populatedOrder.buyer.lastName,
-    };
+  // Optionally: send payment confirmation email
+  const populatedOrder = await this.orderModel
+    .findById(order._id)
+    .populate('buyer', 'firstName email')
+    .populate('orderItems.productId', 'name') as unknown as PopulatedOrder;
 
-    await this.notificationService.sendPaymentSuccessEmail(user, orderToSend);
-  }
+  const orderToSend = {
+    _id: populatedOrder._id,
+    items: populatedOrder.orderItems.map((item: any) => ({
+      productName: item.productId.name,
+      quantity: item.quantity,
+    })),
+    totalAmount: populatedOrder.totalPrice,
+    estimatedDeliveryDate: populatedOrder.estimatedDeliveryDate || null,
+  };
+
+  const user = {
+    email: populatedOrder.buyer.email,
+    firstName: populatedOrder.buyer.firstName,
+  };
+
+  await this.notificationService.sendPaymentConfirmationEmail(user, orderToSend);
+}
+
 }
