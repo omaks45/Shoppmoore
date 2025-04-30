@@ -31,7 +31,7 @@ async function bootstrap() {
     credentials: true,
   };
 
-  /**
+  
   if (nodeEnv === 'development') {
     // Allow localhost during development
     corsOptions.origin = [
@@ -40,11 +40,9 @@ async function bootstrap() {
       'http://127.0.0.1:5173',
     ];
   }
-  */
-  app.enableCors({
-    origin: ['http://localhost:3000', 'http://127.0.0.1:5173'],
-    credentials: true,
-  });
+  
+ app.enableCors(corsOptions);
+
 
   // Swagger setup
   const swaggerConfig = new DocumentBuilder()
