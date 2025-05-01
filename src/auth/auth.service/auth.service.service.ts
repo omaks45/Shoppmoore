@@ -91,15 +91,23 @@ export class AuthService implements OnModuleInit {
   /** 🔹 User Signup (Default Role: Buyer) */
   async signup(dto: SignupDto): Promise<{ message: string; newUser: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password, retypePassword } = dto;
-
-    if (password !== retypePassword) throw new BadRequestException('Passwords do not match');
-
-    if (await this.userModel.exists({ email })) throw new BadRequestException('Email already in use');
-
+  
+    if (password !== retypePassword) {
+      throw new BadRequestException('Passwords do not match');
+    }
+  
+    if (await this.userModel.exists({ email })) {
+      throw new BadRequestException('Email already in use');
+    }
+  
+    if (await this.userModel.exists({ phoneNumber })) {
+      throw new BadRequestException('Phone number already in use');
+    }
+  
     const hashedPassword = await PasswordUtils.hashPassword(password);
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000);
-
+  
     const newUser = new this.userModel({
       firstName,
       lastName,
@@ -110,42 +118,63 @@ export class AuthService implements OnModuleInit {
       verificationCode,
       verificationCodeExpires,
     });
-
-    await newUser.save();
+  
+    try {
+      await newUser.save();
+    } catch (err) {
+      if (err.code === 11000 && err.keyPattern?.phoneNumber) {
+        throw new BadRequestException('Phone number already in use');
+      }
+      throw err; // rethrow other unexpected errors
+    }
+  
     await this.notificationService.sendVerificationEmail(email, verificationCode);
-
+  
     return { message: 'Signup successful. Please verify your email.', newUser };
   }
+  
 
   /**Create Admin (Restricted Access) */
  
   async createAdmin(dto: CreateAdminDto): Promise<{ message: string; newAdmin: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password } = dto;
-
+  
     if (await this.userModel.exists({ email })) {
       throw new BadRequestException('Email already in use');
     }
-
+  
+    if (await this.userModel.exists({ phoneNumber })) {
+      throw new BadRequestException('Phone number already in use');
+    }
+  
     const hashedPassword = await PasswordUtils.hashPassword(password);
-
+  
     const newAdmin = new this.userModel({
       firstName,
       lastName,
       email,
       phoneNumber,
       password: hashedPassword,
-      isAdmin: true,           //Mark as admin
-      isVerified: true,        // Auto-verify admins
+      isAdmin: true,
+      isVerified: true,
     });
-
-    await newAdmin.save();
+  
+    try {
+      await newAdmin.save();
+    } catch (err) {
+      if (err.code === 11000 && err.keyPattern?.phoneNumber) {
+        throw new BadRequestException('Phone number already in use');
+      }
+      throw err;
+    }
+  
     await this.notificationService.sendAdminCreationEmail(email);
-
+  
     return { message: 'Admin created successfully', newAdmin };
-  } 
-
+  }
+  
    /**Normal User Login */
-   async login(dto: LoginDto): Promise<{ message: string; token: string }> {
+  async login(dto: LoginDto): Promise<{ message: string; token: string }> {
     const { email, password } = dto;
     const user = await this.validateUserOrThrow(email, password);
   
