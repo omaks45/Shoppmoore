@@ -1,126 +1,118 @@
 /* eslint-disable prettier/prettier */
-import {
-  Injectable,
-  NotFoundException,
-  Inject,
-} from '@nestjs/common';
-import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Profile } from '../profile/profile.schema';
-import { User } from '../auth/auth.schema';
 import { Model } from 'mongoose';
+import { Profile, ProfileDocument } from './profile.schema';
+import { User, UserDocument } from '../auth/auth.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
-import { Cache } from 'cache-manager';
+
+// Type for populated profile with user fields
+type PopulatedProfile = ProfileDocument & {
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+};
 
 @Injectable()
 export class ProfileService {
   constructor(
-    @InjectModel(Profile.name) private readonly profileModel: Model<Profile>,
-    @InjectModel(User.name) private readonly userModel: Model<User>,
+    @InjectModel(Profile.name) private readonly profileModel: Model<ProfileDocument>,
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     private readonly cloudinaryService: CloudinaryService,
-    @Inject(CACHE_MANAGER) private cacheManager: Cache,
   ) {}
 
+  //Get profile with populated user data
   async getProfile(userId: string) {
-    const cacheKey = `profile-${userId}`;
-    const cachedProfile = await this.cacheManager.get(cacheKey);
-
-    if (cachedProfile) {
-      return cachedProfile;
-    }
-
     const profile = await this.profileModel
       .findOne({ user: userId })
-      .populate('user', 'firstName lastName email');
+      .populate('user', 'firstName lastName email') as unknown as PopulatedProfile;
 
-    if (!profile) throw new NotFoundException('Profile not found');
+    if (!profile) return null;
 
-    const result = {
-      firstName: profile.user['firstName'],
-      lastName: profile.user['lastName'],
-      email: profile.user['email'],
-      profileImageUrl: profile.profileImageUrl,
+    return {
+      user: {
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName,
+        email: profile.user.email,
+      },
+      profileImageUrl: profile.profileImageUrl || '',
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
     };
-
-    // Cache it for 5 minutes (300 seconds)
-    await this.cacheManager.set(cacheKey, result, 300);
-    return result;
   }
 
+  //Upload profile image
   async uploadProfileImage(userId: string, file: Express.Multer.File) {
     const uploadedImage = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
 
-    const profile = await this.profileModel.findOneAndUpdate(
-      { user: userId },
-      { profileImageUrl: uploadedImage.secure_url },
-      { new: true, upsert: true },
-    );
+    const profile = await this.profileModel
+      .findOneAndUpdate(
+        { user: userId },
+        { profileImageUrl: uploadedImage.secure_url },
+        { new: true, upsert: true },
+      )
+      .populate('user', 'firstName lastName email') as unknown as PopulatedProfile;
 
-    // Clear cached profile
-    await this.cacheManager.del(`profile-${userId}`);
-
-    return profile;
+    return {
+      user: {
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName,
+        email: profile.user.email,
+      },
+      profileImageUrl: profile.profileImageUrl || '',
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    };
   }
 
+  //Update profile image
   async updateProfileImage(userId: string, file: Express.Multer.File) {
     const uploadedImage = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
 
+    const profile = await this.profileModel
+      .findOneAndUpdate(
+        { user: userId },
+        { profileImageUrl: uploadedImage.secure_url },
+        { new: true },
+      )
+      .populate('user', 'firstName lastName email') as unknown as PopulatedProfile;
 
-    const profile = await this.profileModel.findOneAndUpdate(
-      { user: userId },
-      { profileImageUrl: uploadedImage.secure_url },
-      { new: true },
-    );
-
-    if (!profile) throw new NotFoundException('Profile not found');
-
-    // Clear cached profile
-    await this.cacheManager.del(`profile-${userId}`);
-
-    return profile;
-  }
-
-  async deleteProfileImage(userId: string) {
-    const profile = await this.profileModel.findOne({ user: userId });
-    if (!profile) throw new NotFoundException('Profile not found');
-
-    profile.profileImageUrl = null;
-    await profile.save();
-
-    // Clear cached profile
-    await this.cacheManager.del(`profile-${userId}`);
-
-    return profile;
-  }
-
-  //Admin use case - get paginated list of profiles
-  async getAllProfiles(page: number = 1, limit: number = 10) {
-    const skip = (page - 1) * limit;
-
-    const [profiles, total] = await Promise.all([
-      this.profileModel
-        .find()
-        .populate('user', 'firstName lastName email')
-        .skip(skip)
-        .limit(limit)
-        .lean(),
-      this.profileModel.countDocuments(),
-    ]);
 
     return {
-      data: profiles.map((profile) => ({
-        id: profile._id,
-        firstName: profile.user['firstName'],
-        lastName: profile.user['lastName'],
-        email: profile.user['email'],
-        profileImageUrl: profile.profileImageUrl,
-      })),
-      meta: {
-        total,
-        page,
-        limit,
-        pages: Math.ceil(total / limit),
+      user: {
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName,
+        email: profile.user.email,
       },
+      profileImageUrl: profile.profileImageUrl || '',
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    };
+  }
+
+  //Delete profile image
+  async deleteProfileImage(userId: string) {
+    const profile = await this.profileModel
+      .findOne({ user: userId })
+      .populate('user', 'firstName lastName email') as unknown as PopulatedProfile;
+
+
+    if (!profile) return null;
+
+    profile.profileImageUrl = '';
+    await profile.save();
+
+    return {
+      user: {
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName,
+        email: profile.user.email,
+      },
+      profileImageUrl: '',
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
     };
   }
 }

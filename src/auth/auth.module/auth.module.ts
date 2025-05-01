@@ -25,7 +25,7 @@ import { UserModule } from '../../users/users.module'; //Fix path & circular imp
       inject: [ConfigService],
       useFactory: async (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
-        signOptions: { expiresIn: '10m' },
+        signOptions: { expiresIn: '2days' },
       }),
     }),
     NotificationsModule,

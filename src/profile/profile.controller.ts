@@ -1,108 +1,93 @@
 /* eslint-disable prettier/prettier */
+// profile/profile.controller.ts
 import {
   Controller,
   Get,
   Post,
-  Put,
+  Patch,
   Delete,
-  Param,
   UploadedFile,
   UseInterceptors,
-  ParseIntPipe,
-  Query,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+} from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService } from './profile.service';
-import { UseGuards } from '@nestjs/common';
-import { Express } from 'express';
-import { JwtAuthGuard } from 'src/auth/auth.guard';
-import { TokenBlacklistGuard } from '../common/guards/token-blacklist.guard';
-import { 
-  ApiTags, 
-  ApiConsumes, 
-  ApiBody, 
-  ApiQuery, 
-  ApiParam, 
-  ApiResponse 
-} from '@nestjs/swagger';
+import { ProfileResponseDto } from './dto/profile-response.dto';
+//import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AuthGuard } from '@nestjs/passport';
+import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 
-@ApiTags('Profiles')
-@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-@Controller('profiles')
+@ApiTags('Profile')
+@ApiBearerAuth()
+@UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
+@Controller('profile')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
 
-  // Get a user's profile
-  @Get(':userId')
-  @ApiParam({ name: 'userId', required: true, description: 'ID of the user whose profile to fetch' })
-  @ApiResponse({ status: 200, description: 'Successfully retrieved user profile.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
-  async getProfile(@Param('userId') userId: string) {
-    return this.profileService.getProfile(userId);
-  }
-
-  // Upload a new profile image
-  @Post(':userId/upload')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'userId', required: true, description: 'ID of the user to upload profile image for' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @ApiResponse({ status: 201, description: 'Profile image uploaded successfully.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
-  async uploadProfileImage(
-    @Param('userId') userId: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    return this.profileService.uploadProfileImage(userId, file);
-  }
-
-  // Update (overwrite) profile image
-  @Put(':userId/update-image')
-  @UseInterceptors(FileInterceptor('file'))
-  @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'userId', required: true, description: 'ID of the user to update profile image for' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Profile image updated successfully.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
-  async updateProfileImage(
-    @Param('userId') userId: string,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    return this.profileService.updateProfileImage(userId, file);
-  }
-
-  // Delete profile image
-  @Delete(':userId/delete-image')
-  @ApiParam({ name: 'userId', required: true, description: 'ID of the user to delete profile image from' })
-  @ApiResponse({ status: 200, description: 'Profile image deleted successfully.' })
-  @ApiResponse({ status: 404, description: 'Profile not found.' })
-  async deleteProfileImage(@Param('userId') userId: string) {
-    return this.profileService.deleteProfileImage(userId);
-  }
-
-  // Admin - Get all profiles (paginated)
   @Get()
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number for pagination (default: 1)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of profiles per page (default: 10)' })
-  @ApiResponse({ status: 200, description: 'Successfully retrieved paginated list of profiles.' })
-  async getAllProfiles(
-    @Query('page', ParseIntPipe) page = 1,
-    @Query('limit', ParseIntPipe) limit = 10,
-  ) {
-    return this.profileService.getAllProfiles(page, limit);
+  @ApiOperation({ summary: 'Get current user profile', description: 'Fetch the authenticated user’s profile with email, name, and profile image.' })
+  @ApiResponse({ status: 200, description: 'Profile retrieved successfully', type: ProfileResponseDto })
+  @ApiResponse({ status: 404, description: 'Profile not found' })
+  async getProfile(@Req() req) {
+    return this.profileService.getProfile(req.user._id);
+  }
+
+  @Post('upload-image')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Upload profile image', description: 'Upload a new profile image for the authenticated user.' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile image file (JPEG/PNG)',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Profile image uploaded successfully', type: ProfileResponseDto })
+  async uploadProfileImage(@UploadedFile() file: Express.Multer.File, @Req() req) {
+    return this.profileService.uploadProfileImage(req.user._id, file);
+  }
+
+  @Patch('update-image')
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Update profile image', description: 'Replace the current profile image with a new one.' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'New profile image file (JPEG/PNG)',
+        },
+      },
+    },
+  })
+  @ApiResponse({ status: 200, description: 'Profile image updated successfully', type: ProfileResponseDto })
+  async updateProfileImage(@UploadedFile() file: Express.Multer.File, @Req() req) {
+    return this.profileService.updateProfileImage(req.user._id, file);
+  }
+
+  @Delete('delete-image')
+  @ApiOperation({ summary: 'Delete profile image', description: 'Remove the user’s profile image and reset it to empty.' })
+  @ApiResponse({ status: 200, description: 'Profile image deleted successfully', type: ProfileResponseDto })
+  @ApiResponse({ status: 404, description: 'Profile not found' })
+  async deleteProfileImage(@Req() req) {
+    return this.profileService.deleteProfileImage(req.user._id);
   }
 }
