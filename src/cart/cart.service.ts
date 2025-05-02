@@ -14,10 +14,26 @@ export class CartService {
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
   ) {}
 
-  async getCart(userId: Types.ObjectId) {
+  async getCart(userId: Types.ObjectId, page = 1, limit = 10) {
     const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
-    return cart || { userId, items: [] };
+  
+    if (!cart) return { userId, items: [], pagination: { totalItems: 0, totalPages: 0, currentPage: page } };
+  
+    const totalItems = cart.items.length;
+    const totalPages = Math.ceil(totalItems / limit);
+    const paginatedItems = cart.items.slice((page - 1) * limit, page * limit);
+  
+    return {
+      userId: cart.userId,
+      items: paginatedItems,
+      pagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+      },
+    };
   }
+  
 
   async addToCart(userId: Types.ObjectId, dto: AddToCartDto) {
     const product = await this.productModel.findById(dto.productId);

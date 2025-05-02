@@ -1,7 +1,8 @@
 /* eslint-disable prettier/prettier */
 import {
   Controller, Post, Body, Get, Delete, Patch,   Req, //UseGuards,
-  UseGuards
+  UseGuards,
+  Query
 } from '@nestjs/common';
 import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
@@ -41,11 +42,14 @@ export class CartController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get user cart' })
-  getCart(@Req() req) {
-    return this.cartService.getCart(req.user._id);
+  @ApiOperation({ summary: 'Get user cart (paginated)' })
+  getCart(@Req() req, @Query('page') page = '1', @Query('limit') limit = '10') {
+    const pageNumber = parseInt(page, 10) || 1;
+    const limitNumber = parseInt(limit, 10) || 10;
+  
+    return this.cartService.getCart(req.user._id, pageNumber, limitNumber);
   }
-
+  
   @Delete('clear')
   @ApiOperation({ summary: 'Clear cart' })
   clearCart(@Req() req) {
