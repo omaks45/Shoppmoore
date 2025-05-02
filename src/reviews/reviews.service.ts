@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
-import { Injectable } from '@nestjs/common';
+// reviews.service.ts
+import { NotFoundException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Review, ReviewDocument } from './review.schema';
@@ -21,7 +22,6 @@ export class ReviewsService {
       userId,
     });
 
-    // Notify admin through websocket + firebase
     await this.notificationService.notifyNewReview(created);
 
     return this.toEntity(created);
@@ -52,6 +52,36 @@ export class ReviewsService {
         pageSize: limit,
       },
     };
+  }
+
+  async update(reviewId: string, userId: string, dto: Partial<CreateReviewDto>): Promise<ReviewEntity> {
+    const review = await this.reviewModel.findById(reviewId);
+
+    if (!review) throw new NotFoundException('Review not found');
+    if (review.userId.toString() !== userId) throw new ForbiddenException('You are not authorized to update this review');
+
+    Object.assign(review, dto);
+    
+    await review.save();
+
+    await this.notificationService.notifyReviewUpdated(review);
+    
+    return this.toEntity(review);
+    
+  }
+
+  async delete(reviewId: string, userId: string): Promise<{ message: string }> {
+    const review = await this.reviewModel.findById(reviewId);
+
+    if (!review) throw new NotFoundException('Review not found');
+    if (review.userId.toString() !== userId) throw new ForbiddenException('You are not authorized to delete this review');
+
+    await this.notificationService.notifyReviewDeleted(review);
+
+    await this.reviewModel.deleteOne({ _id: reviewId });
+    
+    return { message: 'Review deleted successfully' };
+    
   }
 
   private toEntity(doc: any): ReviewEntity {

@@ -199,6 +199,56 @@ export class NotificationService implements OnModuleInit {
     }
   }
 
+
+    /** Review Updated Notification (WebSocket + Firebase Push) */
+  async notifyReviewUpdated(review: any) {
+    this.notificationGateway.sendReviewUpdatedNotification(review);
+
+    const payload = {
+      notification: {
+        title: 'Review Updated',
+        body: review.content.substring(0, 50) + '...',
+      },
+      data: {
+        type: 'review_updated',
+        reviewId: review._id.toString(),
+      },
+      topic: review.userId.toString(), // use userId as topic or customize per user
+    };
+
+    try {
+      await getMessaging().send(payload);
+      console.log('Firebase Review Update Notification Sent');
+    } catch (err) {
+      console.error('Firebase Review Update Error:', err);
+    }
+  }
+
+  /** Review Deleted Notification (WebSocket + Firebase Push) */
+  async notifyReviewDeleted(review: any) {
+    this.notificationGateway.sendReviewDeletedNotification(review);
+
+    const payload = {
+      notification: {
+        title: 'Review Deleted',
+        body: `Your review for product ${review.productId} was deleted.`,
+      },
+      data: {
+        type: 'review_deleted',
+        reviewId: review._id.toString(),
+      },
+      topic: review.userId.toString(),
+    };
+
+    try {
+      await getMessaging().send(payload);
+      console.log('Firebase Review Deletion Notification Sent');
+    } catch (err) {
+      console.error('Firebase Review Deletion Error:', err);
+    }
+  }
+
+
   /** payment notification email */
 
   async sendPaymentSuccessEmail(user: { email: string; firstName: string }, order: any) {

@@ -51,4 +51,18 @@ export class NotificationGateway implements OnGatewayConnection, OnGatewayDiscon
       review,
     });
   }
+
+  sendReviewUpdatedNotification(review: any) {
+    // Example: notify frontend via WebSocket
+    this.server.to(review.userId.toString()).emit('review_updated', {
+      reviewId: review._id.toString(),
+      content: review.content,
+    });
+  }
+
+  sendReviewDeletedNotification(review: any) {
+    this.server.to(review.userId.toString()).emit('review_deleted', {
+      reviewId: review._id.toString(),
+    });
+  }
 }
