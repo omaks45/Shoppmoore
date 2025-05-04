@@ -121,6 +121,34 @@ export class ProductService {
     return response;
   }  
 
+   
+  // Fetch all products for admin with pagination
+  // This method retrieves all products created by a specific admin, with pagination support.
+  async getAdminProducts(adminId: string, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+  
+    const [products, total] = await Promise.all([
+      this.productModel
+        .find({ createdBy: adminId })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('category', 'name'),
+      this.productModel.countDocuments({ createdBy: adminId }),
+    ]);
+  
+    return {
+      data: products,
+      metadata: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
+  }
+  
+
 
   /// Find a product by its ID
   /// This method retrieves a product from the database and caches it for future requests.

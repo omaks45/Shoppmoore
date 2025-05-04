@@ -129,6 +129,22 @@ export class ProductController {
   }
   
 
+  // Get all products created by the current admin (real-time, no cache)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  @Get('admin/my-products')
+  @ApiOperation({ summary: 'Get all products created by current admin (real-time, no cache)' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
+  @ApiOkResponse({ description: 'Returns admin’s created products without caching' })
+  async getMyProducts(
+    @Query('page') page = 1,
+    @Query('limit') limit = 10,
+    @User() user: any
+  ) {
+    return this.productService.getAdminProducts(user._id, Number(page), Number(limit));
+  }
+  
+
    
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Get('stock-out')
