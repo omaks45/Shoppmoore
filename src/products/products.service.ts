@@ -15,6 +15,7 @@ import { UpdateProductDto } from '../products/dto/update-product.dto';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { Cache } from 'cache-manager';
 import { CategoryDocument } from '../category/schema/category.schema'
+import { ProductGateway } from './product.gateway';
 
 /**
  * ProductService
@@ -31,7 +32,8 @@ export class ProductService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     private cloudinaryService: CloudinaryService,
     @Inject(CACHE_MANAGER) private cacheManager: Cache,
-    @InjectModel('Category') private readonly categoryModel: Model<CategoryDocument>, 
+    @InjectModel('Category') private readonly categoryModel: Model<CategoryDocument>,
+    private readonly productGateway: ProductGateway, 
   ) {}
 
   async create(
@@ -168,17 +170,21 @@ export class ProductService {
   async update(id: string, updateDto: UpdateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
     const product = await this.productModel.findById(id);
     if (!product) throw new NotFoundException('Product not found');
-  
+
     if (file) {
       const result = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
       product.imageUrl = result.secure_url;
     }
-  
+
     Object.assign(product, updateDto);
-    product.updatedBy = user._id; //track updater
-  
+    product.updatedBy = user._id;
+
     await this.cacheManager.del(`product:${id}`);
-    return product.save();
+    const updated = await product.save();
+
+    this.productGateway.emitProductUpdated(updated); //Emit update
+
+    return updated;
   }
   
   /// Fetch products that are out of stock
@@ -228,15 +234,17 @@ export class ProductService {
     if (!product || product.isDeleted) {
       throw new NotFoundException('Product not found or already deleted');
     }
-  
+
     product.isDeleted = true;
     product.deletedBy = user._id;
-  
+
     await product.save();
-  
+
     await this.cacheManager.del(`product:${id}`);
     await this.cacheManager.del('products:all');
-  
+
+    this.productGateway.emitProductDeleted(id); //Emit deletion
+
     return { message: 'Product successfully soft-deleted' };
   }
   
