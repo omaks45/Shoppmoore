@@ -29,6 +29,7 @@ import { ResendOtpDto } from '../dto/resend-otp.dto';
 import { VerifyResetOtpDto } from '../dto/verify-reset-otp.dto';
 import { AdminLoginDto } from '../dto/admin-login.dto';
 
+
 @Injectable()
 export class AuthService implements OnModuleInit {
   private redisClient: Redis;
@@ -55,12 +56,16 @@ export class AuthService implements OnModuleInit {
   }
 
   //**Validate User Credentials (for login) */
-
-  private async validateUserOrThrow(email: string, password: string): Promise<UserDocument> {
+  async validateUserOrThrow(email: string, password: string): Promise<UserDocument> {
     const user = await this.userModel.findOne({ email });
-    
-    if (!user || !(await PasswordUtils.comparePasswords(password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+  
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+  
+    const isPasswordValid = await PasswordUtils.comparePasswords(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid Credentials');
     }
   
     return user;
@@ -83,6 +88,25 @@ export class AuthService implements OnModuleInit {
       role: role || (user.isAdmin ? 'admin' : 'buyer'), 
     };
   }
+
+
+
+  private async handleLogin(user: UserDocument, expectedRole: 'admin' | 'buyer'): Promise<{ message: string; token: string }> {
+    if (expectedRole === 'admin' && !user.isAdmin) {
+      throw new UnauthorizedException('Access denied: Admins only');
+    }
+  
+    if (expectedRole === 'buyer' && user.isAdmin) {
+      throw new UnauthorizedException('Access denied: Admins must use the admin login endpoint');
+    }
+  
+    const payload = this.createPayload(user, expectedRole);
+    const token = this.generateToken(payload);
+  
+    const message = expectedRole === 'admin' ? 'Admin login successful' : 'Login successful';
+    return { message, token };
+  }
+  
   
   
   
@@ -174,38 +198,18 @@ export class AuthService implements OnModuleInit {
   }
   
    /**Normal User Login */
+
   async login(dto: LoginDto): Promise<{ message: string; token: string }> {
-    const { email, password } = dto;
-    const user = await this.validateUserOrThrow(email, password);
-  
-    if (user.isAdmin) {
-      throw new UnauthorizedException('Access denied: Admins must use the admin login endpoint');
-    }
-  
-    const payload = this.createPayload(user, 'buyer');
-    const token = this.generateToken(payload);
-  
-    return { message: 'Login successful', token };
+    const user = await this.validateUserOrThrow(dto.email, dto.password);
+    return this.handleLogin(user, 'buyer');
   }
-  
 
-  
-
-    // admin login 
+  //Admin login
   async adminLogin(dto: AdminLoginDto): Promise<{ message: string; token: string }> {
-    const { email, password } = dto;
-    const user = await this.validateUserOrThrow(email, password);
-    
-    if (!user.isAdmin) {
-      throw new UnauthorizedException('Access denied: Admins only');
-    }
-    
-    const payload = this.createPayload(user, 'admin');
-    const token = this.generateToken(payload);
-    
-    return { message: 'Admin login successful', token };
+    const user = await this.validateUserOrThrow(dto.email, dto.password);
+    return this.handleLogin(user, 'admin');
   }
-    
+
 
 
   /** 🔹 Update User Address */
