@@ -19,7 +19,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { JwtAuthGuard } from 'src/auth/auth.guard';
+//import { JwtAuthGuard } from 'src/auth/auth.guard';
 import { User } from 'src/common/decorators/user.decorator';
 //import { Roles } from 'src/common/decorators/roles.decorator';
 //import { RolesGuard } from 'src/common/guards/roles.guard';
@@ -40,6 +40,7 @@ import {
   ApiParam,
 } from '@nestjs/swagger';
 import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
+import { AuthGuard } from '@nestjs/passport';
 //import { Product } from './product.schema';
 
 
@@ -52,7 +53,7 @@ export class ProductController {
    
 
   @Post()
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
   @UseInterceptors(FileInterceptor('image'))
   @HttpCode(HttpStatus.CREATED)
   @ApiConsumes('multipart/form-data')
@@ -130,7 +131,7 @@ export class ProductController {
   
 
   // Get all products created by the current admin (real-time, no cache)
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
   @Get('admin/my-products')
   @ApiOperation({ summary: 'Get all products created by current admin (real-time, no cache)' })
   @ApiQuery({ name: 'page', required: false, example: 1 })
@@ -146,7 +147,7 @@ export class ProductController {
   
 
    
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
   @Get('stock-out')
   @ApiOperation({ summary: 'Get products that are out of stock (Admin only)' })
   @ApiQuery({ name: 'category', required: false, description: 'Filter by category ID' })
@@ -220,7 +221,7 @@ export class ProductController {
   
 
    
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
   @Patch(':id')
   //@Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('image'))
@@ -300,7 +301,7 @@ export class ProductController {
   
 
    
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
   @Delete(':id')
   @ApiOperation({ summary: 'Soft delete a product (Admin only)' })
   @ApiParam({
