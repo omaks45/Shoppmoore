@@ -25,24 +25,23 @@ export class ProfileService {
 
   //Get profile with populated user data
   async getProfile(userId: string) {
-    const profile = await this.profileModel
-      .findOne({ user: userId })
-      .populate('user', 'firstName lastName email') as unknown as PopulatedProfile;
-
-    if (!profile) return null;
-
+    const user = await this.userModel.findById(userId);
+    if (!user) return null;
+  
+    const profile = await this.profileModel.findOne({ user: userId });
+  
     return {
       user: {
-        firstName: profile.user.firstName,
-        lastName: profile.user.lastName,
-        email: profile.user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        email: user.email,
       },
-      profileImageUrl: profile.profileImageUrl || '',
-      createdAt: profile.createdAt,
-      updatedAt: profile.updatedAt,
+      profileImageUrl: profile?.profileImageUrl || '',
+      createdAt: profile?.createdAt,
+      updatedAt: profile?.updatedAt,
     };
   }
-
+  
   //Upload profile image
   async uploadProfileImage(userId: string, file: Express.Multer.File) {
     const uploadedImage = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);

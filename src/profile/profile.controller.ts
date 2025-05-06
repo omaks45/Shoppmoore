@@ -10,7 +10,8 @@ import {
   UseInterceptors,
   UseGuards,
   Req,
-} from '@nestjs/common';
+Res } from '@nestjs/common';
+import { Response } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -32,14 +33,17 @@ import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 @Controller('profile')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
+  
+  @Get('me')
+  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
+  async getProfile(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
-  @Get()
-  @ApiOperation({ summary: 'Get current user profile', description: 'Fetch the authenticated user’s profile with email, name, and profile image.' })
-  @ApiResponse({ status: 200, description: 'Profile retrieved successfully', type: ProfileResponseDto })
-  @ApiResponse({ status: 404, description: 'Profile not found' })
-  async getProfile(@Req() req) {
-    return this.profileService.getProfile(req.user._id);
-  }
+  return this.profileService.getProfile(req['user']._id);
+}
+
 
   @Post('upload-image')
   @UseInterceptors(FileInterceptor('file'))
