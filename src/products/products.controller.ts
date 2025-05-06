@@ -41,6 +41,7 @@ import {
 } from '@nestjs/swagger';
 import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 import { AuthGuard } from '@nestjs/passport';
+import { JwtAuthGuard } from 'src/auth/auth.guard';
 //import { Product } from './product.schema';
 
 
@@ -221,7 +222,7 @@ export class ProductController {
   
 
    
-  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @Patch(':id')
   //@Roles(UserRole.ADMIN)
   @UseInterceptors(FileInterceptor('image'))

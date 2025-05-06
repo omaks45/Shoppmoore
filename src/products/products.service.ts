@@ -167,25 +167,56 @@ export class ProductService {
   }
   
 
-  async update(id: string, updateDto: UpdateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
+      // product.service.ts
+
+  async update(
+    id: string,
+    updateDto: UpdateProductDto,
+    file?: Express.Multer.File,
+    user?: any,
+  ): Promise<Product> {
     const product = await this.productModel.findById(id);
     if (!product) throw new NotFoundException('Product not found');
 
     if (file) {
-      const result = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
-      product.imageUrl = result.secure_url;
+      const { secure_url } = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
+      product.imageUrl = secure_url;
     }
 
-    Object.assign(product, updateDto);
-    product.updatedBy = user._id;
+    Object.assign(product, updateDto, { updatedBy: user._id });
 
-    await this.cacheManager.del(`product:${id}`);
-    const updated = await product.save();
+    await Promise.all([
+      this.cacheManager.del(`product:${id}`),
+      product.save(),
+    ]);
 
-    this.productGateway.emitProductUpdated(updated); //Emit update
+    this.productGateway.emitProductUpdated(product);
 
-    return updated;
+    return product;
   }
+
+  async softDelete(id: string, user: any): Promise<{ message: string }> {
+    const product = await this.productModel.findById(id);
+    if (!product || product.isDeleted) {
+      throw new NotFoundException('Product not found or already deleted');
+    }
+
+    Object.assign(product, {
+      isDeleted: true,
+      deletedBy: user._id,
+    });
+
+    await Promise.all([
+      product.save(),
+      this.cacheManager.del(`product:${id}`),
+      this.cacheManager.del('products:all'),
+    ]);
+
+    this.productGateway.emitProductDeleted(id);
+
+    return { message: 'Product successfully soft-deleted' };
+  }
+
   
   /// Fetch products that are out of stock
   /// This method retrieves products that are marked as unavailable (isAvailable: false).
@@ -226,27 +257,6 @@ export class ProductService {
     return products;
   }
   
-
-  // Soft delete a product by ID
-  // This method marks the product as deleted without removing it from the database.
-  async softDelete(id: string, user: any): Promise<{ message: string }> {
-    const product = await this.productModel.findById(id);
-    if (!product || product.isDeleted) {
-      throw new NotFoundException('Product not found or already deleted');
-    }
-
-    product.isDeleted = true;
-    product.deletedBy = user._id;
-
-    await product.save();
-
-    await this.cacheManager.del(`product:${id}`);
-    await this.cacheManager.del('products:all');
-
-    this.productGateway.emitProductDeleted(id); //Emit deletion
-
-    return { message: 'Product successfully soft-deleted' };
-  }
   
   // finds a product by its category ID
   // This method retrieves all products that belong to a specific category.

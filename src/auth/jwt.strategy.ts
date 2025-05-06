@@ -26,11 +26,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: any): Promise<JwtValidatedUser> {
-    console.log('🔥 JwtStrategy.validate() fired');
-    console.log('🪪 Payload:', payload);
+    //console.log('🔥 JwtStrategy.validate() fired');
+    //console.log('🪪 Payload:', payload);
   
     const user = await this.authService.getUserById(payload.userId);
-    console.log('👤 User fetched:', user?.email);
+    //console.log('👤 User fetched:', user?.email);
   
     if (!user) throw new UnauthorizedException('User not found');
     if (!user.isAdmin && !user.isVerified) {

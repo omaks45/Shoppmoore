@@ -20,10 +20,9 @@ export class PaymentService {
     private readonly orderService: OrderService,
   ) {}
 
-  /**
-   * Initializes a Paystack transaction
-   */
-  async initializeTransaction(dto: InitializeTransactionDto): Promise<PaystackInitResponse> {
+  async initializeTransaction(dto: InitializeTransactionDto & { email: string }): Promise<PaystackInitResponse> {
+    this.logger.log(`Initializing transaction for: ${dto.email}`);
+
     const response = await firstValueFrom(
       this.httpService.post(
         `${this.baseUrl}/transaction/initialize`,

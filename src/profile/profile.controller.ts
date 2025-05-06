@@ -24,25 +24,30 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService } from './profile.service';
 import { ProfileResponseDto } from './dto/profile-response.dto';
 //import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { AuthGuard } from '@nestjs/passport';
+//import { AuthGuard } from '@nestjs/passport';
 import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
+import { JwtAuthGuard } from 'src/auth/auth.guard';
 
+
+@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
 @ApiTags('Profile')
 @ApiBearerAuth()
-@UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
 @Controller('profile')
 export class ProfileController {
   constructor(private readonly profileService: ProfileService) {}
-  
+
   @Get('me')
-  @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
+  //@UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
   async getProfile(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
 
-  return this.profileService.getProfile(req['user']._id);
-}
+    const userId = req['user']._id;
+    console.log('Serving profile for userId:', userId);
+  
+    return this.profileService.getProfile(userId);
+  }
 
 
   @Post('upload-image')

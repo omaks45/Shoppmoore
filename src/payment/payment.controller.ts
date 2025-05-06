@@ -13,14 +13,13 @@ import { InitializeTransactionDto } from './dto/initialize-transaction.dto';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { PaystackInitResponse } from './interfaces/paystack.interface';
 import { Response, Request } from 'express';
-import { JwtAuthGuard } from '../auth/auth.guard';
 import { TokenBlacklistGuard } from '../common/guards/token-blacklist.guard';
 import { PaystackInitResponseDto } from './dto/paystack-init-response.dto';
 import { VerifyTransactionDto } from './dto/verify-transaction.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
 
-
-
-@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+@UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
 @ApiTags('Payments')
 @Controller('payments')
 export class PaymentController {
@@ -42,8 +41,12 @@ export class PaymentController {
   })
   async initializeTransaction(
     @Body() dto: InitializeTransactionDto,
+    @CurrentUser() user: { email: string },
   ): Promise<PaystackInitResponse> {
-    return this.paymentService.initializeTransaction(dto);
+    return this.paymentService.initializeTransaction({
+      ...dto,
+      email: user.email, // Injected from token
+    });
   }
 
   @Post('webhook')

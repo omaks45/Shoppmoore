@@ -6,7 +6,7 @@ import { User } from '../../auth/auth.schema'; // adjust path as needed
 
 @Schema({ timestamps: true })
 export class Payment extends Document {
-    @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
     user: User | Types.ObjectId;
 
   @Prop({ required: true })

@@ -1,13 +1,14 @@
 /* eslint-disable prettier/prettier */
+
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsNumber} from 'class-validator';
+import { IsNumber, IsPositive } from 'class-validator';
 
 export class InitializeTransactionDto {
-  @ApiProperty()
-  @IsNotEmpty()
-  @IsEmail()
-  email: string;
-
+  @ApiProperty({
+    description: 'Amount to be paid in Naira (₦)',
+    example: 5000,
+  })
   @IsNumber()
+  @IsPositive()
   amount: number;
 }

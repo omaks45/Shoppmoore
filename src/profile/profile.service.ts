@@ -25,20 +25,33 @@ export class ProfileService {
 
   //Get profile with populated user data
   async getProfile(userId: string) {
-    const user = await this.userModel.findById(userId);
-    if (!user) return null;
+    const profile = await this.profileModel
+      .findOne({ user: userId })
+      .populate('user', 'firstName lastName email') as unknown as PopulatedProfile;
   
-    const profile = await this.profileModel.findOne({ user: userId });
+    if (!profile || !profile.user) {
+      // If no profile or user is missing (shouldn't happen, but safe check)
+      return {
+        user: {
+          firstName: '',
+          lastName: '',
+          email: '',
+        },
+        profileImageUrl: '',
+        createdAt: null,
+        updatedAt: null,
+      };
+    }
   
     return {
       user: {
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
+        firstName: profile.user.firstName,
+        lastName: profile.user.lastName,
+        email: profile.user.email,
       },
-      profileImageUrl: profile?.profileImageUrl || '',
-      createdAt: profile?.createdAt,
-      updatedAt: profile?.updatedAt,
+      profileImageUrl: profile.profileImageUrl ?? '',
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
     };
   }
   
