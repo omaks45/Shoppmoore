@@ -28,6 +28,8 @@ import { VerifyDto } from '../dto/verify.dto';
 import { ResendOtpDto } from '../dto/resend-otp.dto';
 import { VerifyResetOtpDto } from '../dto/verify-reset-otp.dto';
 import { AdminLoginDto } from '../dto/admin-login.dto';
+import { Profile } from '../../profile/profile.schema';
+
 
 
 @Injectable()
@@ -36,6 +38,7 @@ export class AuthService implements OnModuleInit {
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
+    @InjectModel(Profile.name) private profileModel: Model<Profile>, 
     private readonly jwtService: JwtService,
     private readonly notificationService: NotificationService,
     private readonly configService: ConfigService,
@@ -132,34 +135,42 @@ export class AuthService implements OnModuleInit {
     const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
     const verificationCodeExpires = new Date(Date.now() + 5 * 60 * 1000);
   
-    const newUser = new this.userModel({
-      firstName,
-      lastName,
-      email,
-      phoneNumber,
-      password: hashedPassword,
-      role: 'buyer',
-      verificationCode,
-      verificationCodeExpires,
-    });
+    let newUser: UserDocument;
   
     try {
-      await newUser.save();
+      newUser = await this.userModel.create({
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+        password: hashedPassword,
+        role: 'buyer',
+        verificationCode,
+        verificationCodeExpires,
+      });
+  
+      // 🔥 Auto-create profile
+      await this.profileModel.create({
+        user: newUser._id,
+        profileImageUrl: '',
+      });
     } catch (err) {
       if (err.code === 11000 && err.keyPattern?.phoneNumber) {
         throw new BadRequestException('Phone number already in use');
       }
-      throw err; // rethrow other unexpected errors
+      throw err;
     }
   
     await this.notificationService.sendVerificationEmail(email, verificationCode);
   
-    return { message: 'Signup successful. Please verify your email.', newUser };
+    return {
+      message: 'Signup successful. Please verify your email.',
+      newUser,
+    };
   }
-  
 
-  /**Create Admin (Restricted Access) */
- 
+
+  /** 🔹 Admin Signup */
   async createAdmin(dto: CreateAdminDto): Promise<{ message: string; newAdmin: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password } = dto;
   
@@ -173,18 +184,24 @@ export class AuthService implements OnModuleInit {
   
     const hashedPassword = await PasswordUtils.hashPassword(password);
   
-    const newAdmin = new this.userModel({
-      firstName,
-      lastName,
-      email,
-      phoneNumber,
-      password: hashedPassword,
-      isAdmin: true,
-      isVerified: true,
-    });
+    let newAdmin: UserDocument;
   
     try {
-      await newAdmin.save();
+      newAdmin = await this.userModel.create({
+        firstName,
+        lastName,
+        email,
+        phoneNumber,
+        password: hashedPassword,
+        isAdmin: true,
+        isVerified: true,
+      });
+  
+      // 🔥 Auto-create profile
+      await this.profileModel.create({
+        user: newAdmin._id,
+        profileImageUrl: '',
+      });
     } catch (err) {
       if (err.code === 11000 && err.keyPattern?.phoneNumber) {
         throw new BadRequestException('Phone number already in use');
@@ -194,8 +211,13 @@ export class AuthService implements OnModuleInit {
   
     await this.notificationService.sendAdminCreationEmail(email);
   
-    return { message: 'Admin created successfully', newAdmin };
+    return {
+      message: 'Admin created successfully',
+      newAdmin,
+    };
   }
+  
+  
   
    /**Normal User Login */
 

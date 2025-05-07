@@ -11,8 +11,8 @@ import { User, UserSchema } from '../auth.schema';
 import { JwtAuthGuard } from '../auth.guard';
 import { NotificationsModule } from '../../notifications/notifications.module';
 import { TokenBlacklistGuard } from '../../common/guards/token-blacklist.guard';
-
-import { UserModule } from '../../users/users.module'; //Fix path & circular import
+import { UserModule } from '../../users/users.module'; 
+import { ProfileModule } from 'src/profile/profile.module';
 
 @Module({
   imports: [
@@ -29,6 +29,7 @@ import { UserModule } from '../../users/users.module'; //Fix path & circular imp
       }),
     }),
     NotificationsModule,
+    forwardRef(() => ProfileModule), //Fix circular dependency
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, JwtAuthGuard, TokenBlacklistGuard],

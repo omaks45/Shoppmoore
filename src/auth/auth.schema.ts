@@ -45,6 +45,13 @@ export class User {
     country: string;
     zipCode: string;
   };
+
+  @Prop({ default: 'https://ui-avatars.com/api/?name=User&background=random' })
+  profileImage?: string;
+
+  @Prop()
+  profileImagePublicId?: string;
+  
 }
 
 export type UserDocument = User & Document;

@@ -8,13 +8,17 @@ import { UserController } from './users.controller';
 import { UserService } from './users.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthModule } from '../auth/auth.module/auth.module';
+import { CloudinaryModule } from '../cloudinary/cloudinary.module';
+import { ProfileModule } from '../profile/profile.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     CacheModule.register(),
     NotificationsModule,
+    CloudinaryModule,
     forwardRef(() => AuthModule),
+    forwardRef(() => ProfileModule), //Fix circular dependency
   ],
   controllers: [UserController],
   providers: [UserService],

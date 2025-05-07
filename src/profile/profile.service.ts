@@ -2,7 +2,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Profile, ProfileDocument } from './profile.schema';
+import { Profile, ProfileDocument } from '../profile/profile.schema';
 import { User, UserDocument } from '../auth/auth.schema';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 

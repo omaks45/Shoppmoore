@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
-// profile/profile.controller.ts
+
+/* 
 import {
   Controller,
   Get,
@@ -22,7 +23,7 @@ import {
 } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ProfileService } from './profile.service';
-import { ProfileResponseDto } from './dto/profile-response.dto';
+import { ProfileResponseDto } from '../profile/dto/profile-response.dto';
 //import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 //import { AuthGuard } from '@nestjs/passport';
 import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
@@ -100,3 +101,4 @@ export class ProfileController {
     return this.profileService.deleteProfileImage(req.user._id);
   }
 }
+*/

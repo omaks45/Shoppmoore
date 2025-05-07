@@ -1,10 +1,5 @@
 /* eslint-disable prettier/prettier */
-/**
- * * @file user.entity.ts
- * * @description User entity for the UserService.
- */
-import { ApiProperty } from '@nestjs/swagger';
-
+import { ApiProperty } from "@nestjs/swagger";
 export class UserEntity {
   @ApiProperty()
   id: string;
@@ -38,6 +33,9 @@ export class UserEntity {
     country: string;
     zipCode: string;
   };
+
+  @ApiProperty({ required: false })
+  profileImage?: string;
 
   @ApiProperty()
   createdAt: Date;

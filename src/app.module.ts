@@ -17,8 +17,8 @@ import { CategoryModule } from './category/category.module';
 import { OrderModule } from './order/order.module';
 import { CartModule } from './cart/cart.module';
 import { ReviewsModule } from './reviews/reviews.module';
-import { ProfileModule } from './profile/profile.module';
 import { PaymentModule } from './payment/payment.module';
+import { ProfileModule } from './profile/profile.module';
 
 
 
@@ -36,8 +36,8 @@ import { PaymentModule } from './payment/payment.module';
     OrderModule,
     CartModule,
     ReviewsModule,
-    ProfileModule,
-    PaymentModule
+    PaymentModule,
+    ProfileModule
 
   ],
   controllers: [AppController],

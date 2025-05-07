@@ -1,7 +1,4 @@
-/* eslint-disable prettier/prettier */
-import { ApiProperty } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateProfileDto } from './create-profile.dto';
 
-export class UpdateProfileImageDto {
-  @ApiProperty({ type: 'string', format: 'binary', description: 'New profile image file to replace old one' })
-  file: any;
-}
+export class UpdateProfileDto extends PartialType(CreateProfileDto) {}
