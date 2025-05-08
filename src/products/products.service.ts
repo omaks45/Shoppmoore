@@ -62,32 +62,37 @@ export class ProductService {
     await this.cacheManager.set(cacheKey, response, 60);
   }
 
-  async create(createDto: CreateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
+  async create(createDto: CreateProductDto, files: Express.Multer.File[], user: any): Promise<Product> {
     const existing = await this.productModel.findOne({ SKU: createDto.SKU });
     if (existing) {
       throw new BadRequestException('Product with SKU already exists');
     }
-
-    let imageUrl: string | undefined;
-    if (file) {
-      const result = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
-      imageUrl = result.secure_url;
+  
+    let imageUrls: string[] = [];
+    if (files && files.length > 0) {
+      const uploads = await Promise.all(
+        files.map(file =>
+          this.cloudinaryService.uploadImage(file.buffer, file.originalname)
+        )
+      );
+      imageUrls = uploads.map(res => res.secure_url);
     }
-
+  
     const newProduct = new this.productModel({
       ...createDto,
-      imageUrl,
+      imageUrls,
       createdBy: user._id,
     });
-
+  
     const savedProduct = await newProduct.save();
-
+  
     await this.cacheManager.del('products:all');
     await this.rehydrateAllProductsCache();
-    await this.rehydrateAdminProductsCache(user._id, 1, 10); //refresh admin cache
-
+    await this.rehydrateAdminProductsCache(user._id, 1, 10);
+  
     return savedProduct;
   }
+  
 
   async findAll(page = 1, limit = 10, search?: string): Promise<PaginatedResponse<Product>> {
     const query: any = { isDeleted: false };
@@ -126,28 +131,40 @@ export class ProductService {
     return response;
   }
 
-  async update(id: string, updateDto: UpdateProductDto, file?: Express.Multer.File, user?: any): Promise<Product> {
+  async update(
+    id: string,
+    updateDto: UpdateProductDto,
+    files?: Express.Multer.File[],
+    user?: any,
+  ): Promise<Product> {
     const product = await this.productModel.findById(id);
     if (!product) throw new NotFoundException('Product not found');
-
-    if (file) {
-      const { secure_url } = await this.cloudinaryService.uploadImage(file.buffer, file.originalname);
-      product.imageUrl = secure_url;
+  
+    // Handle new image uploads (replace old images)
+    if (files && files.length > 0) {
+      const uploads = await Promise.all(
+        files.map(file =>
+          this.cloudinaryService.uploadImage(file.buffer, file.originalname),
+        ),
+      );
+      product.imageUrls = uploads.map(upload => upload.secure_url);
     }
-
+  
+    // Apply DTO updates and track updater
     Object.assign(product, updateDto, { updatedBy: user._id });
-
+  
     await Promise.all([
       product.save(),
       this.cacheManager.del(`product:${id}`),
       this.cacheManager.del('products:all'),
     ]);
-
+  
     await this.rehydrateAllProductsCache();
-    await this.rehydrateAdminProductsCache(user._id, 1, 10); //refresh admin cache
+    await this.rehydrateAdminProductsCache(user._id, 1, 10);
+  
     return product;
   }
-
+  
   async softDelete(id: string, user: any): Promise<{ message: string }> {
     const product = await this.productModel.findById(id);
     if (!product || product.isDeleted) {

@@ -86,5 +86,5 @@ export class CreateProductDto {
     type: 'string',
     format: 'binary',
   })
-  image?: any;
+  imageUrls: string[];
 }

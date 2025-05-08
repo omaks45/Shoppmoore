@@ -10,12 +10,13 @@ import {
   Query,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
+  //UploadedFile,
   Req,
   ParseIntPipe,
+  UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { ProductService } from '../products/products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
@@ -33,17 +34,41 @@ export class ProductController {
 
   @Post()
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FilesInterceptor('files')) // expects field name: files
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Create new product (Admin only)' })
+  @ApiBody({
+    description: 'Product creation with multiple image uploads',
+    schema: {
+      type: 'object',
+      required: ['name', 'price', 'category', 'unit', 'SKU'], // required fields
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        price: { type: 'number' },
+        category: { type: 'string' },
+        unit: { type: 'string' },
+        SKU: { type: 'string' },
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
+  
   @ApiResponse({ status: 201, description: 'Product created successfully.' })
   async create(
-    @Body() createDto: CreateProductDto,
-    @UploadedFile() file: Express.Multer.File,
-    @Req() req: any,
+  @UploadedFiles() files: Express.Multer.File[],
+  @Body() body: CreateProductDto,
+  @Req() req: any,
   ) {
-    return this.productService.create(createDto, file, req.user);
+  return this.productService.create(body, files, req.user);
   }
+
 
   @Get()
   @ApiOperation({ summary: 'Get all available products with optional search & pagination' })
@@ -86,18 +111,41 @@ export class ProductController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FilesInterceptor('files'))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Update a product (Admin only)' })
+  @ApiBody({
+    description: 'Update product with optional image uploads',
+    schema: {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        price: { type: 'number' },
+        category: { type: 'string' },
+        unit: { type: 'string' },
+        SKU: { type: 'string' },
+        files: {
+          type: 'array',
+          items: {
+            type: 'string',
+            format: 'binary',
+          },
+        },
+      },
+    },
+  })
+  
   @ApiResponse({ status: 200, description: 'Product updated successfully.' })
   async update(
     @Param('id') id: string,
+    @UploadedFiles() files: Express.Multer.File[],
     @Body() updateDto: UpdateProductDto,
-    @UploadedFile() file: Express.Multer.File,
     @Req() req: any,
   ) {
-    return this.productService.update(id, updateDto, file, req.user);
+    return this.productService.update(id, updateDto, files, req.user);
   }
+  
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
