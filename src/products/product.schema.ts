@@ -37,10 +37,7 @@ export class Product {
   @Prop()
   description: string;
 
-  @Prop({
-    type: [String],
-    default: [],
-  })
+  @Prop({ type: [String], default: [] })
   imageUrls: string[];
     
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
