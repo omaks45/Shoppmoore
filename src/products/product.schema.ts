@@ -13,11 +13,15 @@ export type ProductDocument = Product & Document;
 
 @Schema({ timestamps: true })
 export class Product {
+
+  _id?: mongoose.Schema.Types.ObjectId;
+
   @Prop({ required: true })
   name: string;
 
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Category' })
-  category: mongoose.Types.ObjectId | string;
+  category: mongoose.Schema.Types.ObjectId;
+
 
   @Prop()
   subcategory: string;

@@ -13,7 +13,7 @@ import { CloudinaryModule } from 'src/cloudinary/cloudinary.module';
 import { RolesGuard } from 'src/common/guards/roles.guard';
 import { AuthModule } from '../auth/auth.module/auth.module';
 import { CategorySchema } from '../category/schema/category.schema';
-import { ProductGateway } from './product.gateway';
+import { NotificationGateway } from '../notifications/notification.gateway';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Product.name, schema: ProductSchema },
@@ -30,7 +30,7 @@ import { ProductGateway } from './product.gateway';
       provide: APP_GUARD,
       useClass: RolesGuard,
     },
-    ProductGateway,
+    NotificationGateway
   ],
 })
 export class ProductModule {}

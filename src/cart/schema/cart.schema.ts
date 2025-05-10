@@ -1,18 +1,12 @@
 /* eslint-disable prettier/prettier */
-/**
- * Cart Schema
- * This schema defines the structure of the Cart document in MongoDB.
- * It includes the user ID and an array of CartItem objects.
- * Each CartItem contains the product ID, quantity, price snapshot, and total price.
- */
-
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document, Types } from 'mongoose';
+import { Document } from 'mongoose';
+import mongoose from 'mongoose';
 
-@Schema({ timestamps: true })
+@Schema({ _id: false }) // Optional: avoids creating _id for subdocs like CartItem
 export class CartItem {
-  @Prop({ type: Types.ObjectId, ref: 'Product' })
-  productId: Types.ObjectId;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true })
+  productId: mongoose.Schema.Types.ObjectId;
 
   @Prop({ required: true })
   quantity: number;
@@ -26,11 +20,12 @@ export class CartItem {
 
 @Schema({ timestamps: true })
 export class Cart extends Document {
-  @Prop({ type: Types.ObjectId, ref: 'User', required: true })
-  userId: Types.ObjectId;
+  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
+  userId: mongoose.Schema.Types.ObjectId;
 
   @Prop({ type: [CartItem], default: [] })
   items: CartItem[];
 }
 
 export const CartSchema = SchemaFactory.createForClass(Cart);
+export type CartDocument = Cart & Document;
