@@ -23,6 +23,7 @@ import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
+import { Product } from './product.schema';
 
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -181,5 +182,18 @@ export class ProductController {
   @ApiResponse({ status: 404, description: 'Product not found.' })
   async findById(@Param('id') id: string) {
     return this.productService.findById(id);
+  }
+
+  @Get('popular')
+  @ApiOperation({ summary: 'Get popular products' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of popular products to return' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of popular products',
+    type: Product,
+    isArray: true,
+  })
+  async getPopular(@Query('limit') limit = 10) {
+    return this.productService.getPopularProducts(Number(limit));
   }
 }

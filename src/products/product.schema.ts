@@ -43,6 +43,9 @@ export class Product {
 
   @Prop({ type: [String], default: [] })
   imageUrls: string[];
+
+  popularity: { type: number, default: 0 }
+
     
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   createdBy: mongoose.Schema.Types.ObjectId;

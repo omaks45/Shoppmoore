@@ -463,4 +463,25 @@ export class ProductService {
     
     return response;
   }
+
+  // Get popular products
+  // This method can be customized to define "popularity" based on your criteria
+  async getPopularProducts(limit = 10): Promise<Product[]> {
+    const cacheKey = `products:popular:limit:${limit}`;
+    const cached = await this.cacheManager.get<Product[]>(cacheKey);
+    if (cached) return cached;
+  
+    const popularProducts = await this.productModel
+      .find({ isDeleted: false })
+      .sort({ popularity: -1 }) // or 'views', or 'sales'
+      .limit(limit)
+      .populate('category', 'name')
+      .exec();
+  
+    await this.cacheManager.set(cacheKey, popularProducts, this.cacheTTL);
+    this.trackCacheKey(CacheTag.PRODUCT, cacheKey);
+  
+    return popularProducts;
+  }
+  
 }

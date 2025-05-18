@@ -115,7 +115,7 @@ export class AuthService implements OnModuleInit {
   
   
 
-  /** 🔹 User Signup (Default Role: Buyer) */
+  /**User Signup (Default Role: Buyer) */
   async signup(dto: SignupDto): Promise<{ message: string; newUser: UserDocument }> {
     const { firstName, lastName, email, phoneNumber, password, retypePassword } = dto;
   
@@ -149,7 +149,7 @@ export class AuthService implements OnModuleInit {
         verificationCodeExpires,
       });
   
-      // 🔥 Auto-create profile
+      //Auto-create profile
       await this.profileModel.create({
         user: newUser._id,
         profileImageUrl: '',
