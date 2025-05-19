@@ -58,7 +58,7 @@ export class UserService {
     if (rehydrate) {
       const user = await this.userModel
         .findById(userId)
-        .select('firstName lastName email profileImage');
+        .select('firstName lastName email profileImage isVerified');
 
       if (!user) throw new NotFoundException('User not found');
 
@@ -78,7 +78,7 @@ export class UserService {
 
     const user = await this.userModel
       .findById(userId)
-      .select('firstName lastName email profileImage');
+      .select('firstName lastName email profileImage isVerified');
 
     if (!user) throw new NotFoundException('User not found');
 
