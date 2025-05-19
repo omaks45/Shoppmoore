@@ -1,5 +1,6 @@
 /* eslint-disable prettier/prettier */
 import { ApiProperty } from "@nestjs/swagger";
+import { AddressDto } from "../dto/address.dto";
 export class UserEntity {
   @ApiProperty()
   id: string;
@@ -25,14 +26,8 @@ export class UserEntity {
   @ApiProperty()
   isVerified: boolean;
 
-  @ApiProperty({ required: false })
-  address?: {
-    street: string;
-    aptOrSuite?: string;
-    city: string;
-    country: string;
-    zipCode: string;
-  };
+  @ApiProperty({ required: false, type: AddressDto })
+  address?: AddressDto;
 
   @ApiProperty({ required: false })
   profileImage?: string;
