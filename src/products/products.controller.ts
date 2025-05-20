@@ -179,6 +179,16 @@ async create(
   
 
 
+  @ApiOperation({ summary: 'Get popular products sorted by sales' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max number of products to return' })
+  @ApiResponse({ status: 200, description: 'Popular products returned successfully' })
+  @Get('/popular')
+  getPopularProducts(@Query('limit') limit = 10): Promise<Product[]> {
+    return this.productService.getPopularProducts(limit);
+  }
+  
+
+
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single product by ID (public)' })
@@ -188,14 +198,7 @@ async create(
     return this.productService.findById(id);
   }
 
-  @ApiOperation({ summary: 'Get popular products sorted by sales' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max number of products to return' })
-  @ApiResponse({ status: 200, description: 'Popular products returned successfully' })
-  @Get('/popular')
-  getPopularProducts(@Query('limit') limit = 10): Promise<Product[]> {
-    return this.productService.getPopularProducts(limit);
-  }
-  
+ 
 
   @ApiOperation({ summary: 'Update product stock after order is placed' })
   @ApiParam({ name: 'productId' })
