@@ -37,14 +37,26 @@ export class User {
   @Prop()
   passwordResetExpires?: Date;
 
-  @Prop({ type: Object })
-  address?: {
+  @Prop({
+    type: [
+      {
+        street: { type: String, required: true },
+        aptOrSuite: { type: String },
+        city: { type: String, required: true },
+        country: { type: String, required: true },
+        zipCode: { type: String, required: true },
+      },
+    ],
+    default: [],
+  })
+  addresses: {
     street: string;
     aptOrSuite?: string;
     city: string;
     country: string;
     zipCode: string;
-  };
+  }[];
+
 
   @Prop({ default: 'https://ui-avatars.com/api/?name=User&background=random' })
   profileImage?: string;

@@ -26,8 +26,9 @@ export class UserEntity {
   @ApiProperty()
   isVerified: boolean;
 
-  @ApiProperty({ required: false, type: AddressDto })
-  address?: AddressDto;
+  @ApiProperty({ type: [AddressDto] })
+  addresses: AddressDto[];
+  
 
   @ApiProperty({ required: false })
   profileImage?: string;

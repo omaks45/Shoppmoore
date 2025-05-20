@@ -12,6 +12,8 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
+  IsBoolean,
+  Min,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -82,9 +84,49 @@ export class CreateProductDto {
   description?: string;
 
   @ApiProperty({
-    description: 'Product image file (upload as binary)',
+    description: 'Available quantity in stock',
+    example: 100,
+  })
+  @IsNumber()
+  @IsNotEmpty()
+  availableQuantity: number;
+
+  @ApiProperty({
+    description: 'Maximum order limit for the product',
+    example: 10,
+  })
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  maxOrderLimit?: number;
+
+  @ApiProperty({ required: false, example: true, description: 'Product availability' })
+  @IsBoolean()
+  @IsOptional()
+  isAvailable?: boolean;
+
+  @ApiProperty({ required: false, example: 0, description: 'Count of times product went out of stock' })
+  @IsNumber()
+  @IsOptional()
+  stockOutCount?: number;
+
+  @ApiProperty({ required: false, example: 0, description: 'Total units sold' })
+  @IsNumber()
+  @IsOptional()
+  salesCount?: number;
+
+  @ApiProperty({ required: false, example: null, description: 'Total stock count' })
+  @IsNumber()
+  @IsOptional()
+  stockCount?: number;
+  @ApiProperty({
     type: 'string',
     format: 'binary',
   })
   imageUrls?: string[];
+  
+  
 }
+
+
+// Removed duplicate and incorrect declaration of imageUrls property

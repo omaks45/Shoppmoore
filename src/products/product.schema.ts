@@ -46,7 +46,22 @@ export class Product {
 
   popularity: { type: number, default: 0 }
 
-    
+  @Prop({ required: true, min: 0 })
+  availableQuantity: number;
+  
+  @Prop({ default: 100, min: 0 }) 
+  maxOrderLimit: number;
+
+
+  @Prop({ default: 0 })
+  stockOutCount: number;
+
+  @Prop({ default: 0 })
+  salesCount: number;
+  
+  @Prop({ default: 0 })
+  stockCount: number;
+  
   @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
   createdBy: mongoose.Schema.Types.ObjectId;
 

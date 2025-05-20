@@ -3,7 +3,7 @@ import {
   Controller,
   Post,
   Get,
-  Put,
+  //Put,
   Delete,
   Param,
   Body,
@@ -15,15 +15,20 @@ import {
   UploadedFiles,
   ParseBoolPipe,
   DefaultValuePipe,
+  Patch,
 } from '@nestjs/common';
-import { FilesInterceptor } from '@nestjs/platform-express';
-import { ApiBearerAuth, ApiConsumes, ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
+import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiConsumes, ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody, ApiParam } from '@nestjs/swagger';
 import { ProductService } from '../products/products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { JwtAuthGuard } from '../auth/auth.guard';
 import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 import { Product } from './product.schema';
+import { CurrentUser } from 'src/common/decorators/current-user.decorator';
+//import { StockValidationResult } from './dto/stock-validation-result.dto';
+
+
 
 @ApiTags('Products')
 @ApiBearerAuth()
@@ -32,41 +37,50 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @UseInterceptors(FilesInterceptor('files')) 
-  @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Create new product (Admin only)' })
-  @ApiBody({
-    description: 'Product creation with multiple image uploads',
-    schema: {
-      type: 'object',
-      required: ['name', 'price', 'category', 'unit', 'SKU'],
-      properties: {
-        name: { type: 'string' },
-        description: { type: 'string' },
-        price: { type: 'number' },
-        category: { type: 'string' },
-        unit: { type: 'string' },
-        SKU: { type: 'string' },
-        files: {
-          type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
+@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+@UseInterceptors(FilesInterceptor('images')) // 'images' field matches Swagger
+@ApiConsumes('multipart/form-data')
+@ApiOperation({ summary: 'Create a new product with multiple images' })
+@ApiBody({
+  description: 'Product creation data including images',
+  schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', example: 'Wireless Mouse' },
+      category: { type: 'string', example: 'Electronics' },
+      subcategory: { type: 'string', example: 'Computer Accessories' },
+      brandName: { type: 'string', example: 'Logitech' },
+      unit: { type: 'string', example: 'pcs' },
+      SKU: { type: 'string', example: 'WM-2023-BLK' },
+      price: { type: 'number', example: 5999 },
+      description: { type: 'string', example: 'Ergonomic wireless mouse...' },
+      availableQuantity: { type: 'number', example: 100 },
+      maxOrderLimit: { type: 'number', example: 10 },
+      isAvailable: { type: 'boolean', example: true },
+      stockOutCount: { type: 'number', example: 0 },
+      salesCount: { type: 'number', example: 0 },
+      stockCount: { type: 'number', example: null },
+      images: {
+        type: 'array',
+        items: {
+          type: 'string',
+          format: 'binary',
         },
       },
     },
-  })
-  
-  @ApiResponse({ status: 201, description: 'Product created successfully.' })
-  async create(
-    @UploadedFiles() files: Express.Multer.File[],
-    @Body() body: CreateProductDto,
-    @Req() req: any,
-  ) {
-    return this.productService.create(body, files, req.user);
-  }
+  },
+})
+@ApiResponse({ status: 201, description: 'Product successfully created' })
+@ApiResponse({ status: 400, description: 'Invalid input or SKU conflict' })
+async create(
+  @UploadedFiles() files: Express.Multer.File[],
+  @Body() createDto: CreateProductDto,
+  @CurrentUser() user: { _id: string }
+
+): Promise<Product> {
+  return this.productService.create(createDto, files || [], user);
+}
+
 
   @Get()
   @ApiOperation({ summary: 'Get all available products with optional search & pagination' })
@@ -115,42 +129,26 @@ export class ProductController {
     return this.productService.getAdminProducts(req.user._id, page, limit, refresh);
   }
 
-  @Put(':id')
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @UseInterceptors(FilesInterceptor('files'))
+  @ApiOperation({ summary: 'Update an existing product' })
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Update a product (Admin only)' })
-  @ApiBody({
-    description: 'Update product with optional image uploads',
-    schema: {
-      type: 'object',
-      properties: {
-        name: { type: 'string' },
-        description: { type: 'string' },
-        price: { type: 'number' },
-        category: { type: 'string' },
-        unit: { type: 'string' },
-        SKU: { type: 'string' },
-        files: {
-          type: 'array',
-          items: {
-            type: 'string',
-            format: 'binary',
-          },
-        },
-      },
-    },
-  })
-  @ApiResponse({ status: 200, description: 'Product updated successfully.' })
-  async update(
+  @ApiParam({ name: 'id', description: 'Product ID' })
+  @ApiBody({ type: UpdateProductDto })
+  @ApiResponse({ status: 200, description: 'Product successfully updated' })
+  @ApiResponse({ status: 404, description: 'Product not found' })
+  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+  //@Roles(Role.ADMIN)
+  @Patch(':id')
+  @UseInterceptors(FileFieldsInterceptor([{ name: 'images', maxCount: 5 }]))
+  update(
     @Param('id') id: string,
-    @UploadedFiles() files: Express.Multer.File[],
+    @UploadedFiles() files: { images?: Express.Multer.File[] },
     @Body() updateDto: UpdateProductDto,
-    @Req() req: any,
-  ) {
-    return this.productService.update(id, updateDto, files, req.user);
+    @CurrentUser() user: any,
+  ): Promise<Product> {
+    return this.productService.update(id, updateDto, files?.images, user);
   }
-
+  
+  
   @Delete(':id')
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Soft delete a product (Admin only)' })
@@ -159,22 +157,28 @@ export class ProductController {
     return this.productService.softDelete(id, req.user);
   }
 
-  @Get('stock-out')
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @ApiOperation({ summary: 'Get stock-out products (admin)' })
+
+
+  @ApiOperation({ summary: 'Get stock-out products' })
   @ApiQuery({ name: 'category', required: false })
-  @ApiQuery({ name: 'minPrice', required: false })
-  @ApiQuery({ name: 'maxPrice', required: false })
-  @ApiQuery({ name: 'refresh', required: false, type: Boolean, description: 'Force cache refresh' })
-  @ApiResponse({ status: 200, description: 'List of stock-out products.' })
-  async stockOut(
+  @ApiQuery({ name: 'minPrice', required: false, type: Number })
+  @ApiQuery({ name: 'maxPrice', required: false, type: Number })
+  @ApiQuery({ name: 'includeDeleted', required: false, type: Boolean })
+  @ApiQuery({ name: 'refresh', required: false, type: Boolean })
+  @ApiResponse({ status: 200, description: 'List of out-of-stock products' })
+  @Get('/stock-out')
+  stockOut(
     @Query('category') category?: string,
     @Query('minPrice') minPrice?: number,
     @Query('maxPrice') maxPrice?: number,
-    @Query('refresh', new DefaultValuePipe(false), ParseBoolPipe) refresh = false,
-  ) {
-    return this.productService.stockOut(category, minPrice, maxPrice, false, refresh);
+    @Query('includeDeleted') includeDeleted = false,
+    @Query('refresh') refresh = false,
+  ): Promise<any[]> {
+    return this.productService.stockOut(category, minPrice, maxPrice, includeDeleted, refresh);
   }
+  
+
+
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single product by ID (public)' })
@@ -184,16 +188,57 @@ export class ProductController {
     return this.productService.findById(id);
   }
 
-  @Get('popular')
-  @ApiOperation({ summary: 'Get popular products' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of popular products to return' })
-  @ApiResponse({
-    status: 200,
-    description: 'List of popular products',
-    type: Product,
-    isArray: true,
-  })
-  async getPopular(@Query('limit') limit = 10) {
-    return this.productService.getPopularProducts(Number(limit));
+  @ApiOperation({ summary: 'Get popular products sorted by sales' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Max number of products to return' })
+  @ApiResponse({ status: 200, description: 'Popular products returned successfully' })
+  @Get('/popular')
+  getPopularProducts(@Query('limit') limit = 10): Promise<Product[]> {
+    return this.productService.getPopularProducts(limit);
   }
+  
+
+  @ApiOperation({ summary: 'Update product stock after order is placed' })
+  @ApiParam({ name: 'productId' })
+  @ApiQuery({ name: 'quantity', type: Number })
+  @ApiResponse({ status: 200, description: 'Stock updated' })
+  @Patch('/reduce-stock/:productId')
+  @UseGuards(JwtAuthGuard)
+  updateStockAfterOrder(
+    @Param('productId') productId: string,
+    @Query('quantity') quantity: number,
+  ): Promise<void> {
+    return this.productService.updateStockAfterOrder(productId, quantity);
+  }
+  
+
+  @ApiOperation({ summary: 'Validate multiple product quantities in one request' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              productId: { type: 'string' },
+              quantity: { type: 'number' }
+            }
+          }
+        }
+      }
+    }
+  })
+  @ApiResponse({ status: 200, description: 'Bulk validation result returned' })
+  @Post('/validate/bulk')
+  validateBulk(
+    @Body() body: { items: { productId: string; quantity: number }[] }
+  ): Promise<{
+    isValid: boolean;
+    invalidItems: Array<{ productId: string; message: string }>;
+  }> {
+    return this.productService.validateBulkOrderQuantities(body.items);
+  }
+  
+  
 }

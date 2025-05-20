@@ -104,10 +104,12 @@ export class UserController {
   }
 
 
+  
   @Get('profile')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
   async getCurrentUserProfile(@User() user: AuthUser) {
+    console.log('Decoded User:', user);
     return this.userService.getCurrentUserProfile(user._id); 
   }
 
