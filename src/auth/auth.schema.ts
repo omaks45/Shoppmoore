@@ -1,6 +1,7 @@
 /* eslint-disable prettier/prettier */
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
+import { Address, AddressSchema } from './address.schema'; 
 
 @Schema({ timestamps: true })
 export class User {
@@ -37,25 +38,8 @@ export class User {
   @Prop()
   passwordResetExpires?: Date;
 
-  @Prop({
-    type: [
-      {
-        street: { type: String, required: true },
-        aptOrSuite: { type: String },
-        city: { type: String, required: true },
-        country: { type: String, required: true },
-        zipCode: { type: String, required: true },
-      },
-    ],
-    default: [],
-  })
-  addresses: {
-    street: string;
-    aptOrSuite?: string;
-    city: string;
-    country: string;
-    zipCode: string;
-  }[];
+  @Prop({ type: [AddressSchema], default: [] })
+  addresses: Address[];
 
 
   @Prop({ default: 'https://ui-avatars.com/api/?name=User&background=random' })
@@ -66,7 +50,10 @@ export class User {
   
 }
 
-export type UserDocument = User & Document;
+export type UserDocument = User & Document & {
+  addresses: (Address & mongoose.Types.Subdocument)[];
+};
+
 export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.set('toJSON', {
   virtuals: true,

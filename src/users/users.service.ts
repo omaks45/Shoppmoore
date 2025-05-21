@@ -17,6 +17,7 @@ import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { UserEntity } from './entities/user.entity';
 import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { ConfigService } from '@nestjs/config';
+import { AddressDto } from './dto/address.dto';
 
 @Injectable()
 export class UserService {
@@ -417,4 +418,53 @@ export class UserService {
       userId: id,
     });
   }
+
+
+  /**
+   * Add new address
+   */
+  async addAddress(userId: string, addressDto: AddressDto) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+  
+    user.addresses.push(addressDto); // No manual _id needed
+    await user.save();
+  
+    await this.invalidateUserProfileCache(userId);
+    return user.addresses;
+  }
+  
+
+  
+  async updateAddress(userId: string, addressId: string, addressDto: AddressDto) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+  
+    const address = (user.addresses as any).id(addressId); // cast to any to silence TS
+    if (!address) throw new NotFoundException('Address not found');
+  
+    Object.assign(address, addressDto);
+    await user.save();
+  
+    await this.invalidateUserProfileCache(userId);
+    return user.addresses;
+  }
+  
+
+  // deleteAddress
+  async deleteAddress(userId: string, addressId: string) {
+    const user = await this.userModel.findById(userId);
+    if (!user) throw new NotFoundException('User not found');
+  
+    const addressIndex = user.addresses.findIndex((addr: any) => addr._id.toString() === addressId);
+    if (addressIndex === -1) throw new NotFoundException('Address not found');
+  
+    user.addresses.splice(addressIndex, 1);
+    await user.save();
+  
+    await this.invalidateUserProfileCache(userId);
+    return user.addresses;
+  }
+  
 }
+  

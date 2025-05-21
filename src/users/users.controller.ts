@@ -12,8 +12,6 @@ import {
   UploadedFile,
   UseInterceptors,
   Post,
-  //Req,
-  //ForbiddenException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,35 +23,22 @@ import {
   ApiResponse,
   ApiConsumes,
   ApiBody,
- // ApiResponse,
-  //ApiResponse,
 } from '@nestjs/swagger';
 import { UserService } from '../users/users.service';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
 import { FilterUserDto } from '../users/dto/filter-user.dto';
 import { UserEntity } from '../users/entities/user.entity';
-//import { JwtAuthGuard } from '../auth/auth.guard';
-//import { RolesGuard } from '../common/guards/roles.guard';
-//import { AuthGuard } from '@nestjs/passport';
-//import { Roles } from '../common/decorators/roles.decorator';
-//import { UserRole } from 'src/common/enums/roles.enum';
-import { User } from '../common/decorators/user.decorator'; //New decorator
-import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
-//import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { JwtAuthGuard } from 'src/auth/auth.guard';
+import { TokenBlacklistGuard } from 'src/common/guards/token-blacklist.guard';
 import { FileInterceptor } from '@nestjs/platform-express';
-//import { AuthGuard } from '@nestjs/passport';
-
-//import { JwtPayload } from 'src/auth/utils/jwt-payload.interface';
-
+import { AddressDto } from './dto/address.dto';
+import { User } from '../common/decorators/user.decorator';
 
 interface AuthUser {
   _id: string;
   email: string;
   role: 'admin' | 'buyer';
 }
-
-
 
 @ApiTags('Users')
 @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
@@ -62,10 +47,12 @@ interface AuthUser {
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  // ================= User Routes =================
+
   @Get()
   @ApiOperation({ summary: 'Get all users (Admin dashboard)' })
-  @ApiQuery({ name: 'page', required: false, example: 1, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, example: 10, description: 'Items per page' })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 10 })
   @ApiOkResponse({
     description: 'List of users with pagination metadata',
     schema: {
@@ -87,35 +74,18 @@ export class UserController {
       },
     },
   })
-  async findAll(
-    @Query() filter: FilterUserDto,
-    @User() user: { _id: string; role: 'admin' | 'buyer' },
-  ): Promise<{
-    data: UserEntity[];
-    metadata: {
-      totalItems: number;
-      totalPages: number;
-      currentPage: number;
-      pageSize: number;
-    };
-  }> {
+  async findAll(@Query() filter: FilterUserDto, @User() user: AuthUser) {
     console.log('Admin requesting users list:', user._id);
     return this.userService.findAll(filter);
   }
 
-
-  
   @Get('profile')
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
   async getCurrentUserProfile(@User() user: AuthUser) {
-    console.log('Decoded User:', user);
-    return this.userService.getCurrentUserProfile(user._id); 
+    return this.userService.getCurrentUserProfile(user._id);
   }
 
-
-
-  //@UseGuards(JwtAuthGuard)
   @Post('upload/profile-image')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
@@ -123,18 +93,15 @@ export class UserController {
     schema: {
       type: 'object',
       properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
+        file: { type: 'string', format: 'binary' },
       },
     },
   })
+  @ApiOperation({ summary: 'Upload user profile image' })
   async uploadImage(@Req() req, @UploadedFile() file: Express.Multer.File) {
     return this.userService.uploadProfileImage(req.user._id, file);
   }
 
-  //@UseGuards(JwtAuthGuard)
   @Put('update/profile-image')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
@@ -142,56 +109,67 @@ export class UserController {
     schema: {
       type: 'object',
       properties: {
-        file: {
-          type: 'string',
-          format: 'binary',
-        },
+        file: { type: 'string', format: 'binary' },
       },
     },
   })
+  @ApiOperation({ summary: 'Update profile image' })
   async updateImage(@Req() req, @UploadedFile() file: Express.Multer.File) {
     return this.userService.updateProfileImage(req.user._id, file);
   }
 
-  //@UseGuards(JwtAuthGuard)
   @Delete('delete/profile-image')
+  @ApiOperation({ summary: 'Delete profile image' })
   async deleteImage(@Req() req) {
     return this.userService.deleteProfileImage(req.user._id);
   }
 
-
-
-
   @Get(':id')
-  //@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Get a user by ID (Admin dashboard)' })
-  async findOne(
-    @Param('id') id: string
-  ): Promise<UserEntity> {
-      return this.userService.findById(id);
+  async findOne(@Param('id') id: string): Promise<UserEntity> {
+    return this.userService.findById(id);
   }
 
-
   @Put(':id')
-  //@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @ApiOperation({ summary: 'Users can update their details' })
-  async update(
-    @Param('id') id: string,
-    @Body() dto: UpdateUserDto,
-    @User() user: { userId: string }
-  ): Promise<UserEntity> {
-      console.log(`User ${user.userId} is updating user ${id}`);
-      return this.userService.updateProfile(id, dto);
+  @ApiOperation({ summary: 'Update user details' })
+  async update(@Param('id') id: string, @Body() dto: UpdateUserDto, @User() user: AuthUser) {
+    console.log(`User ${user._id} is updating user ${id}`);
+    return this.userService.updateProfile(id, dto);
   }
 
   @Delete(':id')
-  //@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
   @ApiOperation({ summary: 'Delete user (Admin dashboard)' })
-  async remove(
-    @Param('id') id: string,
-    @User() user: { userId: string }
-  ): Promise<void> {
-      console.log(`Admin ${user.userId} is deleting user ${id}`);
-      return this.userService.remove(id);
+  async remove(@Param('id') id: string, @User() user: AuthUser): Promise<void> {
+    console.log(`Admin ${user._id} is deleting user ${id}`);
+    return this.userService.remove(id);
+  }
+
+  // ================= Address Routes =================
+
+  @Post('addresses')
+  @ApiOperation({ summary: 'Add new address for user' })
+  @ApiBody({ type: AddressDto })
+  @ApiResponse({ status: 201, description: 'Address added successfully' })
+  async addAddress(@User() user: AuthUser, @Body() addressDto: AddressDto) {
+    return this.userService.addAddress(user._id, addressDto);
+  }
+
+  @Put('addresses/:addressId')
+  @ApiOperation({ summary: 'Update an address for user' })
+  @ApiBody({ type: AddressDto })
+  @ApiResponse({ status: 200, description: 'Address updated successfully' })
+  async updateAddress(
+    @User() user: AuthUser,
+    @Param('addressId') addressId: string,
+    @Body() addressDto: AddressDto,
+  ) {
+    return this.userService.updateAddress(user._id, addressId, addressDto);
+  }
+
+  @Delete('addresses/:addressId')
+  @ApiOperation({ summary: 'Delete an address from user profile' })
+  @ApiResponse({ status: 200, description: 'Address deleted successfully' })
+  async deleteAddress(@User() user: AuthUser, @Param('addressId') addressId: string) {
+    return this.userService.deleteAddress(user._id, addressId);
   }
 }
