@@ -14,6 +14,7 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { UpdateStatusDto } from './dto/update-status.dto';
 import { NotificationService } from '../notifications/notifications.service';
 import { PopulatedOrder } from './order.types';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class OrderService {
@@ -25,7 +26,8 @@ export class OrderService {
   ) {}
 
   async createOrder(dto: CreateOrderDto) {
-    const newOrder = await this.orderModel.create(dto);
+    const reference = `ORD-${randomUUID()}`;
+    const newOrder = await this.orderModel.create({ ...dto, reference });
 
     await this.logModel.create({
       orderId: newOrder._id,
