@@ -14,26 +14,30 @@ export class CartService {
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
   ) {}
 
-  // Shipping fee constant
   private readonly SHIPPING_FEE = 750;
 
-  private calculateCartTotalWithShipping(cart: Cart): number {
-    const subTotal = cart.items.reduce((sum, item) => {
-      return sum + item.total;
-    }, 0);
+  public calculateCartTotalWithShipping(cart: Cart): number {
+    const subTotal = cart.items.reduce((sum, item) => sum + item.total, 0);
     return subTotal + this.SHIPPING_FEE;
   }
 
-
   async getCart(userId: Types.ObjectId, page = 1, limit = 10) {
     const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
-  
-    if (!cart) return { userId, items: [], pagination: { totalItems: 0, totalPages: 0, currentPage: page } };
-  
+
+    if (!cart) {
+      return {
+        userId,
+        items: [],
+        pagination: { totalItems: 0, totalPages: 0, currentPage: page },
+        totalWithShipping: this.SHIPPING_FEE,
+      };
+    }
+
     const totalItems = cart.items.length;
     const totalPages = Math.ceil(totalItems / limit);
     const paginatedItems = cart.items.slice((page - 1) * limit, page * limit);
-  
+    const totalWithShipping = this.calculateCartTotalWithShipping(cart);
+
     return {
       userId: cart.userId,
       items: paginatedItems,
@@ -42,21 +46,17 @@ export class CartService {
         totalPages,
         currentPage: page,
       },
+      totalWithShipping,
     };
   }
-  
 
-
-  // addToCart method to add items to the cart
   async addToCart(userId: Types.ObjectId, dto: AddToCartDto) {
     const product = await this.productModel.findById(dto.productId);
     if (!product) throw new NotFoundException('Product not found');
 
     const cart = await this.cartModel.findOne({ userId }) || new this.cartModel({ userId, items: [] });
 
-    const existingItem = cart.items.find(
-      (item) => item.productId.toString() === dto.productId,
-    );
+    const existingItem = cart.items.find(item => item.productId.toString() === dto.productId);
 
     if (existingItem) {
       existingItem.quantity += dto.quantity;
@@ -70,18 +70,13 @@ export class CartService {
       });
     }
 
-    // Optional: store totalWithShipping in a virtual field or just recalculate on the fly
-    cart.markModified('items'); // necessary in some Mongoose versions when modifying sub-docs
-
+    cart.markModified('items');
     await cart.save();
 
     const totalWithShipping = this.calculateCartTotalWithShipping(cart);
     return { cart, totalWithShipping };
   }
 
-
-
-  // updateCartItem method to update the quantity of an item in the cart
   async updateCartItem(userId: Types.ObjectId, dto: UpdateCartItemDto) {
     const cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
@@ -99,7 +94,6 @@ export class CartService {
     return { cart, totalWithShipping };
   }
 
-
   async removeFromCart(userId: Types.ObjectId, productId: string) {
     const cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
@@ -115,32 +109,4 @@ export class CartService {
     cart.items = [];
     return cart.save();
   }
-
-
-  // Inside CartService
-
-
-  async getCartSummary(userId: Types.ObjectId) {
-    const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
-
-    if (!cart || cart.items.length === 0) {
-      return {
-        items: [],
-        subTotal: 0,
-        shippingFee: this.SHIPPING_FEE,
-        total: this.SHIPPING_FEE,
-      };
-    }
-
-    const subTotal = cart.items.reduce((sum, item) => sum + item.total, 0);
-    const total = subTotal + this.SHIPPING_FEE;
-
-    return {
-      items: cart.items,
-      subTotal,
-      shippingFee: this.SHIPPING_FEE,
-      total,
-    };
-  }
-
 }

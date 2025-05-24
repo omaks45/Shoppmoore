@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { InitializeTransactionDto } from './dto/initialize-transaction.dto';
 import { firstValueFrom } from 'rxjs';
@@ -21,18 +21,22 @@ export class PaymentService {
     private readonly orderService: OrderService,
   ) {}
 
-  async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
+ async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
   this.logger.log(`Initializing transaction for: ${dto.email}`);
 
-  // Get cart totals from CartService
-  const { total } = await this.orderService.cartService.getCartSummary(new Types.ObjectId(dto.userId));
+  const cart = await this.orderService.cartService['cartModel'].findOne({ userId: new Types.ObjectId(dto.userId) });
+  if (!cart || cart.items.length === 0) {
+    throw new NotFoundException('Cart is empty');
+  }
+
+  const total = this.orderService.cartService['calculateCartTotalWithShipping'](cart);
 
   const response = await firstValueFrom(
     this.httpService.post(
       `${this.baseUrl}/transaction/initialize`,
       {
         email: dto.email,
-        amount: total * 100, // total includes shipping, convert to kobo
+        amount: total * 100, // convert to kobo
       },
       {
         headers: this.buildHeaders(),
@@ -42,6 +46,7 @@ export class PaymentService {
 
   return response.data;
 }
+
 
   /**
    * Handles webhook and verifies transaction
