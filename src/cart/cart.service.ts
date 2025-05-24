@@ -88,6 +88,8 @@ export class CartService {
     cart.items = [];
     return cart.save();
   }
+
+
   // Inside CartService
   readonly SHIPPING_FEE = 750;
 
@@ -103,7 +105,7 @@ export class CartService {
       };
     }
 
-    const subTotal = cart.items.reduce((sum, item) => sum + item.total, 0);
+    const subTotal = cart.items.reduce((sum, item) => sum + (item.priceSnapshot * item.quantity), 0);
     const total = subTotal + this.SHIPPING_FEE;
 
     return {
