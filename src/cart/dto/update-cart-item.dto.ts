@@ -7,16 +7,25 @@
  * Validation is performed using class-validator decorators.
  */
 
-import { IsMongoId, IsNumber, Min } from 'class-validator';
+// src/cart/dto/update-cart-item.dto.ts
+
 import { ApiProperty } from '@nestjs/swagger';
+import { IsMongoId, IsInt, Min } from 'class-validator';
 
 export class UpdateCartItemDto {
-  @ApiProperty()
-  @IsMongoId()
+  @ApiProperty({
+    description: 'The ID of the product to update',
+    example: '6635b7aeed55b2c0d6b13d19',
+  })
+  @IsMongoId({ message: 'Invalid productId' })
   productId: string;
 
-  @ApiProperty()
-  @IsNumber()
-  @Min(1)
+  @ApiProperty({
+    description: 'New quantity for the product',
+    example: 3,
+    minimum: 1,
+  })
+  @IsInt({ message: 'Quantity must be an integer' })
+  @Min(1, { message: 'Quantity must be at least 1' })
   quantity: number;
 }

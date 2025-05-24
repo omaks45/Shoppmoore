@@ -1,31 +1,35 @@
 /* eslint-disable prettier/prettier */
+// src/cart/cart.schema.ts
+
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { Document } from 'mongoose';
-import mongoose from 'mongoose';
+import { Document, Types } from 'mongoose';
 
-@Schema({ _id: false }) // Optional: avoids creating _id for subdocs like CartItem
+export type CartDocument = Cart & Document;
+
+@Schema({ _id: false })
 export class CartItem {
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true })
-  productId: mongoose.Schema.Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: 'Product', required: true })
+  productId: Types.ObjectId;
 
-  @Prop({ required: true })
+  @Prop({ required: true, min: 1 })
   quantity: number;
 
   @Prop({ required: true })
-  priceSnapshot: number; // price at time of adding to cart
+  priceSnapshot: number;
 
-  @Prop()
-  total: number; // price * quantity
+  @Prop({ required: true })
+  total: number;
 }
 
-@Schema({ timestamps: true })
-export class Cart extends Document {
-  @Prop({ type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true })
-  userId: mongoose.Schema.Types.ObjectId;
+export const CartItemSchema = SchemaFactory.createForClass(CartItem);
 
-  @Prop({ type: [CartItem], default: [] })
+@Schema({ timestamps: true })
+export class Cart {
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, unique: true })
+  userId: Types.ObjectId;
+
+  @Prop({ type: [CartItemSchema], default: [] })
   items: CartItem[];
 }
 
 export const CartSchema = SchemaFactory.createForClass(Cart);
-export type CartDocument = Cart & Document;

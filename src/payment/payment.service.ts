@@ -1,5 +1,5 @@
 /* eslint-disable prettier/prettier */
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { InitializeTransactionDto } from './dto/initialize-transaction.dto';
 import { firstValueFrom } from 'rxjs';
@@ -8,6 +8,7 @@ import { Inject, forwardRef } from '@nestjs/common';
 import { OrderService } from '../order/order.service';
 import * as crypto from 'crypto';
 import { Types } from 'mongoose';
+//import { Cart } from 'src/cart/schema/cart.schema';
 
 @Injectable()
 export class PaymentService {
@@ -21,32 +22,90 @@ export class PaymentService {
     private readonly orderService: OrderService,
   ) {}
 
- async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
-  this.logger.log(`Initializing transaction for: ${dto.email}`);
+  async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
+    this.logger.log(`Initializing transaction for: ${dto.email}`);
 
-  const cart = await this.orderService.cartService['cartModel'].findOne({ userId: new Types.ObjectId(dto.userId) });
-  if (!cart || cart.items.length === 0) {
-    throw new NotFoundException('Cart is empty');
+    // Get user's cart with populated product data
+    const userIdObj = new Types.ObjectId(dto.userId);
+    const cartData = await this.orderService.cartService.getCart(userIdObj);
+
+    if (!cartData || !cartData.items || cartData.items.length === 0) {
+      throw new NotFoundException('Cart is empty. Please add items to your cart before proceeding to payment.');
+    }
+
+    // Validate that all cart items have valid prices
+    const invalidItems = cartData.items.filter(item => 
+      !item.priceSnapshot || item.priceSnapshot <= 0 || !item.total || item.total <= 0
+    );
+
+    if (invalidItems.length > 0) {
+      this.logger.error(`Invalid cart items found for user ${dto.userId}:`, invalidItems);
+      throw new BadRequestException('Some items in your cart have invalid prices. Please refresh your cart and try again.');
+    }
+
+    // Calculate total using the cart service method
+    const totalWithShipping = cartData.totalWithShipping;
+    
+    // Log the breakdown for debugging
+   const subTotal = cartData.items.reduce((sum: number, item) => sum + Number(item.total), 0);
+
+
+    const shippingFee = totalWithShipping - subTotal;
+    
+    this.logger.log(`Payment breakdown for user ${dto.userId}:`);
+    this.logger.log(`- Subtotal: ₦${subTotal}`);
+    this.logger.log(`- Shipping: ₦${shippingFee}`);
+    this.logger.log(`- Total: ₦${totalWithShipping}`);
+    this.logger.log(`- Amount to Paystack (kobo): ${totalWithShipping * 100}`);
+
+    // Validate minimum amount (Paystack minimum is usually 1 Naira = 100 kobo)
+    if (totalWithShipping < 1) {
+      throw new BadRequestException('Transaction amount must be at least ₦1');
+    }
+
+    try {
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${this.baseUrl}/transaction/initialize`,
+          {
+            email: dto.email,
+            amount: Math.round(totalWithShipping * 100), // convert to kobo and round to avoid decimals
+            currency: 'NGN', // Explicitly set currency
+            reference: `TXN-${Date.now()}-${dto.userId}`, // Generate unique reference
+            callback_url: process.env.PAYMENT_CALLBACK_URL, // Optional: set callback URL
+            metadata: {
+              userId: dto.userId,
+              cartItemsCount: cartData.items.length,
+              subtotal: subTotal,
+              shippingFee: shippingFee,
+              custom_fields: [
+                {
+                  display_name: "Cart Items",
+                  variable_name: "cart_items_count",
+                  value: cartData.items.length.toString()
+                },
+                {
+                  display_name: "Shipping Fee",
+                  variable_name: "shipping_fee",
+                  value: shippingFee.toString()
+                }
+              ]
+            }
+          },
+          {
+            headers: this.buildHeaders(),
+          },
+        ),
+      );
+
+      this.logger.log(`Transaction initialized successfully. Reference: ${response.data.data?.reference}`);
+      return response.data;
+
+    } catch (error) {
+      this.logger.error(`Failed to initialize transaction for user ${dto.userId}:`, error.response?.data || error.message);
+      throw new BadRequestException('Failed to initialize payment. Please try again.');
+    }
   }
-
-  const total = this.orderService.cartService['calculateCartTotalWithShipping'](cart);
-
-  const response = await firstValueFrom(
-    this.httpService.post(
-      `${this.baseUrl}/transaction/initialize`,
-      {
-        email: dto.email,
-        amount: total * 100, // convert to kobo
-      },
-      {
-        headers: this.buildHeaders(),
-      },
-    ),
-  );
-
-  return response.data;
-}
-
 
   /**
    * Handles webhook and verifies transaction
@@ -57,13 +116,14 @@ export class PaymentService {
     if (event === 'charge.success') {
       const reference = data.reference;
       this.logger.log(`Webhook received: charge.success - Ref: ${reference}`);
+      this.logger.log(`Transaction amount: ₦${data.amount / 100}`); // Log amount for verification
 
       const verification = await this.verifyTransaction(reference);
 
       if (verification.status && verification.data.status === 'success') {
         try {
           await this.orderService.markOrderAsPaid(reference);
-          this.logger.log(`Order updated for reference: ${reference}`);
+          this.logger.log(`Order updated for reference: ${reference} - Amount: ₦${verification.data.amount / 100}`);
         } catch (err) {
           this.logger.error(`Failed to mark order as paid: ${err.message}`);
         }
@@ -85,6 +145,12 @@ export class PaymentService {
           headers: this.buildHeaders(),
         }),
       );
+      
+      // Log transaction details for debugging
+      if (response.data.status && response.data.data) {
+        this.logger.log(`Transaction verified - Ref: ${reference}, Amount: ₦${response.data.data.amount / 100}, Status: ${response.data.data.status}`);
+      }
+      
       return response.data;
     } catch (error) {
       this.logger.error(`Error verifying transaction: ${reference} - ${error.message}`);
@@ -130,5 +196,21 @@ export class PaymentService {
     }
   
     return verification;
+  }
+
+  // Helper method to get cart total for external use
+  async getCartTotal(userId: string): Promise<{ subtotal: number; shipping: number; total: number }> {
+    const userIdObj = new Types.ObjectId(userId);
+    const cartData = await this.orderService.cartService.getCart(userIdObj);
+    
+    if (!cartData || !cartData.items || cartData.items.length === 0) {
+      return { subtotal: 0, shipping: 750, total: 750 }; // Return shipping fee even for empty cart
+    }
+
+    const subtotal = cartData.items.reduce((sum, item) => sum + item.total, 0);
+    const total = cartData.totalWithShipping;
+    const shipping = total - subtotal;
+
+    return { subtotal, shipping, total };
   }
 }

@@ -1,22 +1,22 @@
 /* eslint-disable prettier/prettier */
 
-/**
- * AddToCartDto
- * Data Transfer Object for adding a product to the cart.
- * It includes the product ID and quantity.
- * Validation is performed using class-validator decorators.
- */
-
-import { IsMongoId, IsNumber, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsMongoId, IsInt, Min } from 'class-validator';
 
 export class AddToCartDto {
-  @ApiProperty({ description: 'Product ID to add to cart' })
-  @IsMongoId()
+  @ApiProperty({
+    description: 'The ID of the product to add',
+    example: '6635b7aeed55b2c0d6b13d19',
+  })
+  @IsMongoId({ message: 'Invalid productId' })
   productId: string;
 
-  @ApiProperty({ description: 'Quantity of the product' })
-  @IsNumber()
-  @Min(1)
+  @ApiProperty({
+    description: 'Quantity to add',
+    example: 2,
+    minimum: 1,
+  })
+  @IsInt({ message: 'Quantity must be an integer' })
+  @Min(1, { message: 'Quantity must be at least 1' })
   quantity: number;
 }
