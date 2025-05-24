@@ -105,7 +105,11 @@ export class CartService {
       };
     }
 
-    const subTotal = cart.items.reduce((sum, item) => sum + (item.priceSnapshot * item.quantity), 0);
+    const subTotal = cart.items.reduce((sum, item) => {
+      const price = item.priceSnapshot ?? 0;
+      return sum + (price * item.quantity);
+    }, 0);
+
     const total = subTotal + this.SHIPPING_FEE;
 
     return {
@@ -114,5 +118,5 @@ export class CartService {
       shippingFee: this.SHIPPING_FEE,
       total,
     };
-  } 
+  }
 }
