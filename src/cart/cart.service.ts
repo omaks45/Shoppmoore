@@ -14,6 +14,17 @@ export class CartService {
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
   ) {}
 
+  // Shipping fee constant
+  private readonly SHIPPING_FEE = 750;
+
+  private calculateCartTotalWithShipping(cart: Cart): number {
+    const subTotal = cart.items.reduce((sum, item) => {
+      return sum + item.total;
+    }, 0);
+    return subTotal + this.SHIPPING_FEE;
+  }
+
+
   async getCart(userId: Types.ObjectId, page = 1, limit = 10) {
     const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
   
@@ -35,6 +46,8 @@ export class CartService {
   }
   
 
+
+  // addToCart method to add items to the cart
   async addToCart(userId: Types.ObjectId, dto: AddToCartDto) {
     const product = await this.productModel.findById(dto.productId);
     if (!product) throw new NotFoundException('Product not found');
@@ -57,9 +70,18 @@ export class CartService {
       });
     }
 
-    return cart.save();
+    // Optional: store totalWithShipping in a virtual field or just recalculate on the fly
+    cart.markModified('items'); // necessary in some Mongoose versions when modifying sub-docs
+
+    await cart.save();
+
+    const totalWithShipping = this.calculateCartTotalWithShipping(cart);
+    return { cart, totalWithShipping };
   }
 
+
+
+  // updateCartItem method to update the quantity of an item in the cart
   async updateCartItem(userId: Types.ObjectId, dto: UpdateCartItemDto) {
     const cart = await this.cartModel.findOne({ userId });
     if (!cart) throw new NotFoundException('Cart not found');
@@ -70,8 +92,13 @@ export class CartService {
     item.quantity = dto.quantity;
     item.total = item.priceSnapshot * dto.quantity;
 
-    return cart.save();
+    cart.markModified('items');
+    await cart.save();
+
+    const totalWithShipping = this.calculateCartTotalWithShipping(cart);
+    return { cart, totalWithShipping };
   }
+
 
   async removeFromCart(userId: Types.ObjectId, productId: string) {
     const cart = await this.cartModel.findOne({ userId });
@@ -91,7 +118,7 @@ export class CartService {
 
 
   // Inside CartService
-  readonly SHIPPING_FEE = 750;
+
 
   async getCartSummary(userId: Types.ObjectId) {
     const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
@@ -105,11 +132,7 @@ export class CartService {
       };
     }
 
-    const subTotal = cart.items.reduce((sum, item) => {
-      const price = item.priceSnapshot ?? 0;
-      return sum + (price * item.quantity);
-    }, 0);
-
+    const subTotal = cart.items.reduce((sum, item) => sum + item.total, 0);
     const total = subTotal + this.SHIPPING_FEE;
 
     return {
@@ -119,4 +142,5 @@ export class CartService {
       total,
     };
   }
+
 }
