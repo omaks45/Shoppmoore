@@ -8,7 +8,6 @@ import { Inject, forwardRef } from '@nestjs/common';
 import { OrderService } from '../order/order.service';
 import * as crypto from 'crypto';
 import { Types } from 'mongoose';
-//import { Cart } from 'src/cart/schema/cart.schema';
 
 @Injectable()
 export class PaymentService {
@@ -24,15 +23,64 @@ export class PaymentService {
 
   async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
     this.logger.log(`Initializing transaction for: ${dto.email}`);
+  
+    // DEBUG: Log the incoming DTO to see what we're receiving
+    this.logger.log(`Full DTO received:`, {
+      email: dto.email,
+      userId: dto.userId,
+      dtoKeys: Object.keys(dto),
+      dtoValues: dto
+    });
 
-    // Get user's cart with populated product data
+    // Validate userId first
+    if (!dto.userId) {
+      this.logger.error('UserId is missing from DTO');
+      throw new BadRequestException('User ID is required for payment processing');
+    }
+
+    // Get user's FULL cart (not paginated) with populated product data
     const userIdObj = new Types.ObjectId(dto.userId);
-    const cartData = await this.orderService.cartService.getCart(userIdObj);
+    this.logger.log(`Converting userId to ObjectId: ${dto.userId} -> ${userIdObj}`);
+
+    // DEBUG: Check if cart exists in database directly
+    const cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj });
+    this.logger.log(`Direct cart query result:`, {
+      cartExists: !!cartExists,
+      cartId: cartExists?._id,
+      cartUserId: cartExists?.userId,
+      rawItemsCount: cartExists?.items?.length || 0,
+      rawItems: cartExists?.items || []
+    });
+
+    const cartData = await this.orderService.cartService.getFullCart(userIdObj);
+
+    // Enhanced logging to debug the cart data
+    this.logger.log(`Cart data for user ${dto.userId}:`, {
+      hasCartData: !!cartData,
+      itemsCount: cartData?.items?.length || 0,
+      items: cartData?.items || [],
+      totalWithShipping: cartData?.totalWithShipping,
+      cartUserId: cartData?.userId
+    });
+
+    // Additional check: Log each item in detail if cart has items
+    if (cartData?.items && cartData.items.length > 0) {
+      cartData.items.forEach((item, index) => {
+        this.logger.log(`Cart item ${index}:`, {
+          productId: item.productId,
+          quantity: item.quantity,
+          priceSnapshot: item.priceSnapshot,
+          total: item.total
+        });
+      });
+    }
 
     if (!cartData || !cartData.items || cartData.items.length === 0) {
+      this.logger.warn(`Empty cart detected for user ${dto.userId}`);
       throw new NotFoundException('Cart is empty. Please add items to your cart before proceeding to payment.');
     }
 
+    // Rest of your code remains the same...
     // Validate that all cart items have valid prices
     const invalidItems = cartData.items.filter(item => 
       !item.priceSnapshot || item.priceSnapshot <= 0 || !item.total || item.total <= 0
@@ -45,13 +93,11 @@ export class PaymentService {
 
     // Calculate total using the cart service method
     const totalWithShipping = cartData.totalWithShipping;
-    
+  
     // Log the breakdown for debugging
-   const subTotal = cartData.items.reduce((sum: number, item) => sum + Number(item.total), 0);
-
-
+    const subTotal = cartData.items.reduce((sum: number, item) => sum + Number(item.total), 0);
     const shippingFee = totalWithShipping - subTotal;
-    
+  
     this.logger.log(`Payment breakdown for user ${dto.userId}:`);
     this.logger.log(`- Subtotal: ₦${subTotal}`);
     this.logger.log(`- Shipping: ₦${shippingFee}`);
@@ -65,48 +111,47 @@ export class PaymentService {
 
     try {
       const response = await firstValueFrom(
-        this.httpService.post(
-          `${this.baseUrl}/transaction/initialize`,
-          {
-            email: dto.email,
-            amount: Math.round(totalWithShipping * 100), // convert to kobo and round to avoid decimals
-            currency: 'NGN', // Explicitly set currency
-            reference: `TXN-${Date.now()}-${dto.userId}`, // Generate unique reference
-            callback_url: process.env.PAYMENT_CALLBACK_URL, // Optional: set callback URL
-            metadata: {
-              userId: dto.userId,
-              cartItemsCount: cartData.items.length,
-              subtotal: subTotal,
-              shippingFee: shippingFee,
-              custom_fields: [
-                {
-                  display_name: "Cart Items",
-                  variable_name: "cart_items_count",
-                  value: cartData.items.length.toString()
-                },
-                {
-                  display_name: "Shipping Fee",
-                  variable_name: "shipping_fee",
-                  value: shippingFee.toString()
-                }
-              ]
-            }
-          },
-          {
-            headers: this.buildHeaders(),
-          },
-        ),
-      );
+      this.httpService.post(
+        `${this.baseUrl}/transaction/initialize`,
+        {
+          email: dto.email,
+          amount: Math.round(totalWithShipping * 100), // convert to kobo and round to avoid decimals
+          currency: 'NGN', // Explicitly set currency
+          reference: `TXN-${Date.now()}-${dto.userId}`, // Generate unique reference
+          callback_url: process.env.PAYMENT_CALLBACK_URL, // Optional: set callback URL
+          metadata: {
+            userId: dto.userId,
+            cartItemsCount: cartData.items.length,
+            subtotal: subTotal,
+            shippingFee: shippingFee,
+            custom_fields: [
+              {
+                display_name: "Cart Items",
+                variable_name: "cart_items_count",
+                value: cartData.items.length.toString()
+              },
+              {
+                display_name: "Shipping Fee",
+                variable_name: "shipping_fee",
+                value: shippingFee.toString()
+              }
+            ]
+          }
+        },
+        {
+          headers: this.buildHeaders(),
+        },
+      ),
+    );
 
-      this.logger.log(`Transaction initialized successfully. Reference: ${response.data.data?.reference}`);
-      return response.data;
+    this.logger.log(`Transaction initialized successfully. Reference: ${response.data.data?.reference}`);
+    return response.data;
 
     } catch (error) {
       this.logger.error(`Failed to initialize transaction for user ${dto.userId}:`, error.response?.data || error.message);
       throw new BadRequestException('Failed to initialize payment. Please try again.');
     }
-  }
-
+  } 
   /**
    * Handles webhook and verifies transaction
    */
@@ -201,7 +246,7 @@ export class PaymentService {
   // Helper method to get cart total for external use
   async getCartTotal(userId: string): Promise<{ subtotal: number; shipping: number; total: number }> {
     const userIdObj = new Types.ObjectId(userId);
-    const cartData = await this.orderService.cartService.getCart(userIdObj);
+    const cartData = await this.orderService.cartService.getFullCart(userIdObj); // Use getFullCart here too
     
     if (!cartData || !cartData.items || cartData.items.length === 0) {
       return { subtotal: 0, shipping: 750, total: 750 }; // Return shipping fee even for empty cart

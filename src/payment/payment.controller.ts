@@ -5,77 +5,69 @@ import {
   HttpCode,
   Post,
   Req,
-  Res,
+ // Res,
   UseGuards,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { InitializeTransactionDto } from './dto/initialize-transaction.dto';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { PaystackInitResponse } from './interfaces/paystack.interface';
-import { Response, Request } from 'express';
-import { TokenBlacklistGuard } from '../common/guards/token-blacklist.guard';
-import { PaystackInitResponseDto } from './dto/paystack-init-response.dto';
+//import { PaystackInitResponseDto } from './dto/paystack-init-response.dto';
 import { VerifyTransactionDto } from './dto/verify-transaction.dto';
-import { AuthGuard } from '@nestjs/passport';
-import { CurrentUser } from '../common/decorators/current-user.decorator';
-import { JwtPayload } from 'src/auth/utils/jwt-payload.interface';
+//import { JwtPayload } from 'src/auth/utils/jwt-payload.interface';
+import { JwtAuthGuard } from 'src/auth/auth.guard';
+import { TokenBlacklistGuard } from '../common/guards/token-blacklist.guard';
+//import { CurrentUser } from '../common/decorators/current-user.decorator';
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+//import { Response, Request } from 'express';
+//import { PaystackInitResponse } from './interfaces/paystack.interface';
+import { Logger } from '@nestjs/common';
 
-@UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
+@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
 @ApiTags('Payments')
 @Controller('payments')
+
+
 export class PaymentController {
+  private readonly logger = new Logger(PaymentController.name);
+
   constructor(private readonly paymentService: PaymentService) {}
 
   @Post('initialize')
-  @ApiOperation({
-    summary: 'Initialize Payment',
-    description: 'Creates a payment session using Paystack.',
-  })
-  @ApiResponse({
-    status: 201,
-    description: 'Payment initialization successful',
-    type: PaystackInitResponseDto,
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Invalid request body',
-  })
+  @ApiOperation({ summary: 'Initialize a Paystack transaction' })
   async initializeTransaction(
     @Body() dto: InitializeTransactionDto,
-    @CurrentUser() user: JwtPayload,
-  ): Promise<PaystackInitResponse> {
+    @Req() req: any, // request.user should be available from JwtAuthGuard
+  ) {
+    const { email, _id: userId } = req.user;
+
+    this.logger.log(`User initializing payment: ${email} - ${userId}`);
+
     return this.paymentService.initializeTransaction({
       ...dto,
-      email: user.email,
-      userId: user.userId, // Injected from token
+      email,
+      userId,
     });
   }
 
   @Post('webhook')
   @HttpCode(200)
-  @ApiOperation({
-    summary: 'Paystack Webhook Handler',
-    description:
-      'Handles Paystack payment webhooks. This endpoint should not be public. It verifies the Paystack signature before processing.',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Webhook processed successfully',
-  })
-  async handleWebhook(@Req() req: Request, @Res() res: Response): Promise<void> {
-    if (!this.paymentService.verifySignature(req)) {
-      res.status(401).json({ message: 'Invalid signature' });
+  async handleWebhook(@Req() req: Request): Promise<{ message: string }> {
+    const isValid = this.paymentService.verifySignature(req);
+    if (!isValid) {
+      return { message: 'Invalid signature' }; // Nest will handle response
     }
 
     await this.paymentService.handleWebhook(req.body);
-    res.status(200).send();
+    return { message: 'Webhook processed successfully' };
   }
 
   @Post('verify')
   @ApiOperation({
     summary: 'Verify Paystack Transaction',
-    description:
-      'Verifies the status of a Paystack transaction using its reference.',
+    description: 'Verifies the status of a Paystack transaction using its reference.',
   })
   @ApiResponse({
     status: 200,

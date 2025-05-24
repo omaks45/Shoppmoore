@@ -10,7 +10,7 @@ import { Product } from '../products/product.schema';
 @Injectable()
 export class CartService {
   constructor(
-    @InjectModel(Cart.name) private readonly cartModel: Model<CartDocument>,
+    @InjectModel(Cart.name) public readonly cartModel: Model<CartDocument>,
     @InjectModel(Product.name) private readonly productModel: Model<Product>,
   ) {}
 
@@ -22,6 +22,27 @@ export class CartService {
 
   private calculateTotalWithShipping(cart: CartDocument): number {
     return this.calculateCartTotal(cart) + this.SHIPPING_FEE;
+  }
+
+  // NEW METHOD: Get full cart without pagination for payment processing
+  async getFullCart(userId: Types.ObjectId) {
+    const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
+
+    if (!cart) {
+      return {
+        userId,
+        items: [],
+        totalWithShipping: this.SHIPPING_FEE,
+      };
+    }
+
+    const totalWithShipping = this.calculateTotalWithShipping(cart);
+
+    return {
+      userId: cart.userId,
+      items: cart.items, // Return ALL items, no pagination
+      totalWithShipping,
+    };
   }
 
   async getCart(userId: Types.ObjectId, page = 1, limit = 10) {
