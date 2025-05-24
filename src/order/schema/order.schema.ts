@@ -32,21 +32,21 @@ export class Order {
   @Prop({ required: true })
   paymentMethod: string;
 
-    // order.schema.ts
   @Prop({ required: true, unique: true })
   reference: string;
 
   @Prop({ default: false })
   isPaid: boolean;
 
-  @Prop({ enum: ['pending', 'paid', 'delivered', 'cancelled'], default: 'pending' })
-  status: string;
-
-
+  @Prop({
+    type: String,
+    enum: Object.values(OrderStatus),
+    default: OrderStatus.PENDING,
+  })
+  status: OrderStatus;
 
   @Prop()
   estimatedDeliveryDate?: Date;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
-

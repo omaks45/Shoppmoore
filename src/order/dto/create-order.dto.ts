@@ -1,11 +1,11 @@
 /* eslint-disable prettier/prettier */
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsArray, IsNumber, ValidateNested } from 'class-validator';
+import { IsString, IsArray, IsNumber, ValidateNested, IsMongoId } from 'class-validator';
 import { Type } from 'class-transformer';
 
 class OrderItemDto {
-  @ApiProperty({ example: '660b...', description: 'Product ID' })
-  @IsString()
+  @ApiProperty({ example: '660b...', description: 'Product ID (MongoDB ObjectId)' })
+  @IsMongoId()
   productId: string;
 
   @ApiProperty({ example: 2, description: 'Quantity of the product' })
@@ -14,8 +14,8 @@ class OrderItemDto {
 }
 
 export class CreateOrderDto {
-  @ApiProperty({ example: '660a...', description: 'Buyer ID' })
-  @IsString()
+  @ApiProperty({ example: '660a...', description: 'Buyer ID (MongoDB ObjectId)' })
+  @IsMongoId()
   buyer: string;
 
   @ApiProperty({

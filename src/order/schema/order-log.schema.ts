@@ -26,14 +26,12 @@ export class OrderLog {
   @Prop({ type: String })
   comment?: string;
 
-  // Either a User (admin/buyer) or system
   @Prop({ type: Types.ObjectId, ref: 'User' })
   performedBy?: Types.ObjectId;
 
-  @Prop({ default: 'user' })
+  @Prop({ type: String, enum: ['user', 'system'], default: 'user' })
   actorType: 'user' | 'system';
 
-  // Optional metadata for extra info (e.g. old values, payload)
   @Prop({ type: Object })
   metadata?: Record<string, any>;
 }

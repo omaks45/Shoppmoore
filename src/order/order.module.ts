@@ -7,6 +7,7 @@ import { Order, OrderSchema } from './schema/order.schema';
 import { OrderLog, OrderLogSchema } from './schema/order-log.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthModule } from '../auth/auth.module/auth.module';
+import { CartModule } from '../cart/cart.module'; 
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AuthModule } from '../auth/auth.module/auth.module';
     ]),
     forwardRef(() => NotificationsModule),
     forwardRef(() => AuthModule),
+    forwardRef(() => CartModule),
   ],
   controllers: [OrderController],
   providers: [OrderService],

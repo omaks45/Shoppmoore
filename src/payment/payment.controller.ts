@@ -18,6 +18,7 @@ import { PaystackInitResponseDto } from './dto/paystack-init-response.dto';
 import { VerifyTransactionDto } from './dto/verify-transaction.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { JwtPayload } from 'src/auth/utils/jwt-payload.interface';
 
 @UseGuards(AuthGuard('jwt'), TokenBlacklistGuard)
 @ApiTags('Payments')
@@ -41,11 +42,12 @@ export class PaymentController {
   })
   async initializeTransaction(
     @Body() dto: InitializeTransactionDto,
-    @CurrentUser() user: { email: string },
+    @CurrentUser() user: JwtPayload,
   ): Promise<PaystackInitResponse> {
     return this.paymentService.initializeTransaction({
       ...dto,
-      email: user.email, // Injected from token
+      email: user.email,
+      userId: user.userId, // Injected from token
     });
   }
 

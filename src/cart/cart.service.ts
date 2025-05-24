@@ -88,4 +88,29 @@ export class CartService {
     cart.items = [];
     return cart.save();
   }
+  // Inside CartService
+  readonly SHIPPING_FEE = 750;
+
+  async getCartSummary(userId: Types.ObjectId) {
+    const cart = await this.cartModel.findOne({ userId }).populate('items.productId');
+
+    if (!cart || cart.items.length === 0) {
+      return {
+        items: [],
+        subTotal: 0,
+        shippingFee: this.SHIPPING_FEE,
+        total: this.SHIPPING_FEE,
+      };
+    }
+
+    const subTotal = cart.items.reduce((sum, item) => sum + item.total, 0);
+    const total = subTotal + this.SHIPPING_FEE;
+
+    return {
+      items: cart.items,
+      subTotal,
+      shippingFee: this.SHIPPING_FEE,
+      total,
+    };
+  } 
 }

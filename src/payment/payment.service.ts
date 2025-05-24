@@ -7,6 +7,7 @@ import { PaystackInitResponse } from './interfaces/paystack.interface';
 import { Inject, forwardRef } from '@nestjs/common';
 import { OrderService } from '../order/order.service';
 import * as crypto from 'crypto';
+import { Types } from 'mongoose';
 
 @Injectable()
 export class PaymentService {
@@ -20,24 +21,27 @@ export class PaymentService {
     private readonly orderService: OrderService,
   ) {}
 
-  async initializeTransaction(dto: InitializeTransactionDto & { email: string }): Promise<PaystackInitResponse> {
-    this.logger.log(`Initializing transaction for: ${dto.email}`);
+  async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
+  this.logger.log(`Initializing transaction for: ${dto.email}`);
 
-    const response = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/transaction/initialize`,
-        {
-          email: dto.email,
-          amount: dto.amount * 100, // Convert to kobo
-        },
-        {
-          headers: this.buildHeaders(),
-        },
-      ),
-    );
+  // Get cart totals from CartService
+  const { total } = await this.orderService.cartService.getCartSummary(new Types.ObjectId(dto.userId));
 
-    return response.data;
-  }
+  const response = await firstValueFrom(
+    this.httpService.post(
+      `${this.baseUrl}/transaction/initialize`,
+      {
+        email: dto.email,
+        amount: total * 100, // total includes shipping, convert to kobo
+      },
+      {
+        headers: this.buildHeaders(),
+      },
+    ),
+  );
+
+  return response.data;
+}
 
   /**
    * Handles webhook and verifies transaction
