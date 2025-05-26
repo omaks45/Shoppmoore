@@ -32,5 +32,6 @@ import { NotificationGateway } from '../notifications/notification.gateway';
     },
     NotificationGateway
   ],
+  exports: [ProductService],
 })
 export class ProductModule {}

@@ -45,6 +45,13 @@ export class Order {
   })
   status: OrderStatus;
 
+
+  @Prop({ required: true })  
+  paymentReference?: string;
+
+  @Prop({ required: true })
+  paidAt?: Date;
+
   @Prop()
   estimatedDeliveryDate?: Date;
 }

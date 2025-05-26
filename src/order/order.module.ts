@@ -8,6 +8,7 @@ import { OrderLog, OrderLogSchema } from './schema/order-log.schema';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthModule } from '../auth/auth.module/auth.module';
 import { CartModule } from '../cart/cart.module'; 
+import { ProductModule } from '../products/products.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { CartModule } from '../cart/cart.module';
     forwardRef(() => NotificationsModule),
     forwardRef(() => AuthModule),
     forwardRef(() => CartModule),
+    forwardRef(() => ProductModule),
   ],
   controllers: [OrderController],
   providers: [OrderService],
