@@ -29,7 +29,6 @@ export class PaymentService {
       email: dto.email,
       userId: dto.userId,
       dtoKeys: Object.keys(dto),
-      dtoValues: dto
     });
 
     // Validate userId first
@@ -38,120 +37,210 @@ export class PaymentService {
       throw new BadRequestException('User ID is required for payment processing');
     }
 
-    // Get user's FULL cart (not paginated) with populated product data
+    // Validate userId format
+    if (!Types.ObjectId.isValid(dto.userId)) {
+      this.logger.error(`Invalid userId format: ${dto.userId}`);
+      throw new BadRequestException('Invalid user ID format');
+    }
+
     const userIdObj = new Types.ObjectId(dto.userId);
     this.logger.log(`Converting userId to ObjectId: ${dto.userId} -> ${userIdObj}`);
 
-    // DEBUG: Check if cart exists in database directly
-    const cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj });
-    this.logger.log(`Direct cart query result:`, {
-      cartExists: !!cartExists,
-      cartId: cartExists?._id,
-      cartUserId: cartExists?.userId,
-      rawItemsCount: cartExists?.items?.length || 0,
-      rawItems: cartExists?.items || []
-    });
-
-    const cartData = await this.orderService.cartService.getFullCart(userIdObj);
-
-    // Enhanced logging to debug the cart data
-    this.logger.log(`Cart data for user ${dto.userId}:`, {
-      hasCartData: !!cartData,
-      itemsCount: cartData?.items?.length || 0,
-      items: cartData?.items || [],
-      totalWithShipping: cartData?.totalWithShipping,
-      cartUserId: cartData?.userId
-    });
-
-    // Additional check: Log each item in detail if cart has items
-    if (cartData?.items && cartData.items.length > 0) {
-      cartData.items.forEach((item, index) => {
-        this.logger.log(`Cart item ${index}:`, {
-          productId: item.productId,
-          quantity: item.quantity,
-          priceSnapshot: item.priceSnapshot,
-          total: item.total
-        });
-      });
-    }
-
-    if (!cartData || !cartData.items || cartData.items.length === 0) {
-      this.logger.warn(`Empty cart detected for user ${dto.userId}`);
-      throw new NotFoundException('Cart is empty. Please add items to your cart before proceeding to payment.');
-    }
-
-    // Rest of your code remains the same...
-    // Validate that all cart items have valid prices
-    const invalidItems = cartData.items.filter(item => 
-      !item.priceSnapshot || item.priceSnapshot <= 0 || !item.total || item.total <= 0
-    );
-
-    if (invalidItems.length > 0) {
-      this.logger.error(`Invalid cart items found for user ${dto.userId}:`, invalidItems);
-      throw new BadRequestException('Some items in your cart have invalid prices. Please refresh your cart and try again.');
-    }
-
-    // Calculate total using the cart service method
-    const totalWithShipping = cartData.totalWithShipping;
-  
-    // Log the breakdown for debugging
-    const subTotal = cartData.items.reduce((sum: number, item) => sum + Number(item.total), 0);
-    const shippingFee = totalWithShipping - subTotal;
-  
-    this.logger.log(`Payment breakdown for user ${dto.userId}:`);
-    this.logger.log(`- Subtotal: ₦${subTotal}`);
-    this.logger.log(`- Shipping: ₦${shippingFee}`);
-    this.logger.log(`- Total: ₦${totalWithShipping}`);
-    this.logger.log(`- Amount to Paystack (kobo): ${totalWithShipping * 100}`);
-
-    // Validate minimum amount (Paystack minimum is usually 1 Naira = 100 kobo)
-    if (totalWithShipping < 1) {
-      throw new BadRequestException('Transaction amount must be at least ₦1');
-    }
-
     try {
-      const response = await firstValueFrom(
-      this.httpService.post(
-        `${this.baseUrl}/transaction/initialize`,
-        {
-          email: dto.email,
-          amount: Math.round(totalWithShipping * 100), // convert to kobo and round to avoid decimals
-          currency: 'NGN', // Explicitly set currency
-          reference: `TXN-${Date.now()}-${dto.userId}`, // Generate unique reference
-          callback_url: process.env.PAYMENT_CALLBACK_URL, // Optional: set callback URL
-          metadata: {
-            userId: dto.userId,
-            cartItemsCount: cartData.items.length,
-            subtotal: subTotal,
-            shippingFee: shippingFee,
-            custom_fields: [
-              {
-                display_name: "Cart Items",
-                variable_name: "cart_items_count",
-                value: cartData.items.length.toString()
-              },
-              {
-                display_name: "Shipping Fee",
-                variable_name: "shipping_fee",
-                value: shippingFee.toString()
-              }
-            ]
-          }
-        },
-        {
-          headers: this.buildHeaders(),
-        },
-      ),
-    );
+      // FIXED: Try multiple query strategies to find the cart
+      let cartExists = null;
+      
+      // Strategy 1: Direct ObjectId query
+      cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj }).lean();
+      this.logger.log(`Strategy 1 - ObjectId query result:`, {
+        cartExists: !!cartExists,
+        cartId: cartExists?._id,
+        cartUserId: cartExists?.userId,
+        rawItemsCount: cartExists?.items?.length || 0
+      });
 
-    this.logger.log(`Transaction initialized successfully. Reference: ${response.data.data?.reference}`);
-    return response.data;
+      // Strategy 2: If not found, try with string userId
+      if (!cartExists) {
+        cartExists = await this.orderService.cartService.cartModel.findOne({ userId: dto.userId }).lean();
+        this.logger.log(`Strategy 2 - String query result:`, {
+          cartExists: !!cartExists,
+          cartId: cartExists?._id,
+          cartUserId: cartExists?.userId,
+          rawItemsCount: cartExists?.items?.length || 0
+        });
+      }
+
+      // Strategy 3: If still not found, try finding by string representation of ObjectId
+      if (!cartExists) {
+        cartExists = await this.orderService.cartService.cartModel.findOne({ 
+          userId: { $in: [userIdObj, dto.userId, userIdObj.toString()] }
+        }).lean();
+        this.logger.log(`Strategy 3 - Multiple formats query result:`, {
+          cartExists: !!cartExists,
+          cartId: cartExists?._id,
+          cartUserId: cartExists?.userId,
+          rawItemsCount: cartExists?.items?.length || 0
+        });
+      }
+
+      // Strategy 4: Debug all carts in database (temporary - remove in production)
+      const allCarts = await this.orderService.cartService.cartModel.find({}).lean();
+      this.logger.log(`DEBUG - All carts in database:`, allCarts.map(cart => ({
+        cartId: cart._id,
+        userId: cart.userId,
+        userIdType: typeof cart.userId,
+        itemsCount: cart.items?.length || 0
+      })));
+
+      if (!cartExists) {
+        this.logger.error(`No cart found for user ${dto.userId} using any strategy`);
+        throw new NotFoundException('No cart found. Please add items to your cart first.');
+      }
+
+      if (!cartExists.items || cartExists.items.length === 0) {
+        this.logger.error(`Empty cart found for user ${dto.userId}`);
+        throw new NotFoundException('Cart is empty. Please add items to your cart before proceeding to payment.');
+      }
+
+      // FIXED: Use the actual userId from the found cart instead of the converted one
+      const actualUserId = cartExists.userId;
+      this.logger.log(`Using actual userId from cart: ${actualUserId} (type: ${typeof actualUserId})`);
+
+      // Get user's FULL cart (not paginated) with populated product data
+      // Use the actual userId format that worked
+      const cartData = await this.orderService.cartService.getFullCart(actualUserId);
+
+      // Enhanced logging to debug the cart data
+      this.logger.log(`Cart data for user ${dto.userId}:`, {
+        hasCartData: !!cartData,
+        itemsCount: cartData?.items?.length || 0,
+        totalWithShipping: cartData?.totalWithShipping,
+        cartUserId: cartData?.userId
+      });
+
+      // Additional check: Log each item in detail if cart has items
+      if (cartData?.items && cartData.items.length > 0) {
+        cartData.items.forEach((item, index) => {
+          this.logger.log(`Cart item ${index}:`, {
+            productId: item.productId,
+            quantity: item.quantity,
+            priceSnapshot: item.priceSnapshot,
+            total: item.total,
+            isProductPopulated: typeof item.productId === 'object'
+          });
+        });
+      } else {
+        this.logger.error(`Cart data processing failed for user ${dto.userId}:`, {
+          cartDataExists: !!cartData,
+          itemsArray: cartData?.items,
+          itemsLength: cartData?.items?.length
+        });
+      }
+
+      if (!cartData || !cartData.items || cartData.items.length === 0) {
+        this.logger.warn(`Empty cart detected after processing for user ${dto.userId}`);
+        throw new NotFoundException('Cart is empty or could not be processed. Please refresh your cart and try again.');
+      }
+
+      // Validate that all cart items have valid prices
+      const invalidItems = cartData.items.filter(item => 
+        !item.priceSnapshot || 
+        item.priceSnapshot <= 0 || 
+        !item.total || 
+        item.total <= 0 ||
+        !item.quantity ||
+        item.quantity <= 0
+      );
+
+      if (invalidItems.length > 0) {
+        this.logger.error(`Invalid cart items found for user ${dto.userId}:`, invalidItems);
+        throw new BadRequestException('Some items in your cart have invalid prices or quantities. Please refresh your cart and try again.');
+      }
+
+      // Calculate total using the cart service method
+      const totalWithShipping = cartData.totalWithShipping;
+    
+      // Log the breakdown for debugging
+      const subTotal = cartData.items.reduce((sum: number, item) => sum + Number(item.total), 0);
+      const shippingFee = totalWithShipping - subTotal;
+    
+      this.logger.log(`Payment breakdown for user ${dto.userId}:`);
+      this.logger.log(`- Subtotal: ₦${subTotal}`);
+      this.logger.log(`- Shipping: ₦${shippingFee}`);
+      this.logger.log(`- Total: ₦${totalWithShipping}`);
+      this.logger.log(`- Amount to Paystack (kobo): ${totalWithShipping * 100}`);
+
+      // Validate minimum amount (Paystack minimum is usually 1 Naira = 100 kobo)
+      if (totalWithShipping < 1) {
+        throw new BadRequestException('Transaction amount must be at least ₦1');
+      }
+
+      // Generate unique reference
+      const reference = `TXN-${Date.now()}-${dto.userId}`;
+      
+      const paystackPayload = {
+        email: dto.email,
+        amount: Math.round(totalWithShipping * 100), // convert to kobo and round to avoid decimals
+        currency: 'NGN', // Explicitly set currency
+        reference: reference,
+        callback_url: process.env.PAYMENT_CALLBACK_URL, // Optional: set callback URL
+        metadata: {
+          userId: dto.userId,
+          cartItemsCount: cartData.items.length,
+          subtotal: subTotal,
+          shippingFee: shippingFee,
+          custom_fields: [
+            {
+              display_name: "Cart Items",
+              variable_name: "cart_items_count",
+              value: cartData.items.length.toString()
+            },
+            {
+              display_name: "Shipping Fee",
+              variable_name: "shipping_fee", 
+              value: shippingFee.toString()
+            }
+          ]
+        }
+      };
+
+      this.logger.log(`Paystack payload:`, {
+        email: paystackPayload.email,
+        amount: paystackPayload.amount,
+        reference: paystackPayload.reference,
+        metadata: paystackPayload.metadata
+      });
+
+      const response = await firstValueFrom(
+        this.httpService.post(
+          `${this.baseUrl}/transaction/initialize`,
+          paystackPayload,
+          {
+            headers: this.buildHeaders(),
+          },
+        ),
+      );
+
+      this.logger.log(`Transaction initialized successfully. Reference: ${response.data.data?.reference}`);
+      return response.data;
 
     } catch (error) {
-      this.logger.error(`Failed to initialize transaction for user ${dto.userId}:`, error.response?.data || error.message);
+      this.logger.error(`Failed to initialize transaction for user ${dto.userId}:`, {
+        error: error.message,
+        stack: error.stack,
+        response: error.response?.data || null
+      });
+      
+      // Re-throw known errors
+      if (error instanceof NotFoundException || error instanceof BadRequestException) {
+        throw error;
+      }
+      
+      // Handle unknown errors
       throw new BadRequestException('Failed to initialize payment. Please try again.');
     }
   } 
+
   /**
    * Handles webhook and verifies transaction
    */
@@ -243,10 +332,35 @@ export class PaymentService {
     return verification;
   }
 
-  // Helper method to get cart total for external use
+  // FIXED: Helper method to get cart total for external use
   async getCartTotal(userId: string): Promise<{ subtotal: number; shipping: number; total: number }> {
+    // Use the same multiple strategy approach as in initializeTransaction
+    let actualUserId: any = null;
     const userIdObj = new Types.ObjectId(userId);
-    const cartData = await this.orderService.cartService.getFullCart(userIdObj); // Use getFullCart here too
+    
+    // Try to find the cart using different userId formats
+    let cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj }).lean();
+    if (cartExists) {
+      actualUserId = cartExists.userId;
+    } else {
+      cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userId }).lean();
+      if (cartExists) {
+        actualUserId = cartExists.userId;
+      } else {
+        cartExists = await this.orderService.cartService.cartModel.findOne({ 
+          userId: { $in: [userIdObj, userId, userIdObj.toString()] }
+        }).lean();
+        if (cartExists) {
+          actualUserId = cartExists.userId;
+        }
+      }
+    }
+
+    if (!actualUserId) {
+      return { subtotal: 0, shipping: 750, total: 750 }; // Return shipping fee even for empty cart
+    }
+
+    const cartData = await this.orderService.cartService.getFullCart(actualUserId);
     
     if (!cartData || !cartData.items || cartData.items.length === 0) {
       return { subtotal: 0, shipping: 750, total: 750 }; // Return shipping fee even for empty cart
@@ -257,5 +371,44 @@ export class PaymentService {
     const shipping = total - subtotal;
 
     return { subtotal, shipping, total };
+  }
+
+  // Debug method to help troubleshoot cart issues
+  async debugUserCart(userId: string) {
+    try {
+      const userIdObj = new Types.ObjectId(userId);
+      
+      // Try multiple strategies like in the main method
+      let actualUserId: any = null;
+      let cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj }).lean();
+      if (cartExists) {
+        actualUserId = cartExists.userId;
+      } else {
+        cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userId }).lean();
+        if (cartExists) {
+          actualUserId = cartExists.userId;
+        } else {
+          cartExists = await this.orderService.cartService.cartModel.findOne({ 
+            userId: { $in: [userIdObj, userId, userIdObj.toString()] }
+          }).lean();
+          if (cartExists) {
+            actualUserId = cartExists.userId;
+          }
+        }
+      }
+
+      if (!actualUserId) {
+        this.logger.error(`No cart found for user ${userId} in debug mode`);
+        return { error: 'No cart found' };
+      }
+
+      const debugInfo = await this.orderService.cartService.debugCart(actualUserId);
+      
+      this.logger.log(`Debug info for user ${userId}:`, debugInfo);
+      return debugInfo;
+    } catch (error) {
+      this.logger.error(`Error debugging cart for user ${userId}:`, error);
+      throw error;
+    }
   }
 }
