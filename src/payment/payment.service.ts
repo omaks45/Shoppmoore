@@ -26,6 +26,13 @@ export class PaymentService {
    */
   async initializeTransaction(dto: InitializeTransactionDto & { email: string, userId: string }): Promise<PaystackInitResponse> {
     this.logger.log(`Initializing transaction for user: ${dto.userId}`);
+    
+    // Add environment debugging
+    this.logger.log(`Environment Debug: NODE_ENV=${process.env.NODE_ENV}, Base URL=${this.baseUrl}`);
+    this.logger.log(`Paystack Secret Key exists: ${!!this.paystackSecret}`);
+    if (this.paystackSecret) {
+      this.logger.log(`Paystack Secret Key prefix: ${this.paystackSecret.substring(0, 8)}...`);
+    }
 
     try {
       // Validate environment configuration
@@ -60,7 +67,9 @@ export class PaymentService {
         error: error.message,
         stack: error.stack,
         userId: dto.userId,
-        email: dto.email
+        email: dto.email,
+        errorCode: error.code,
+        errorType: error.constructor.name
       });
       
       // Re-throw known errors
@@ -182,6 +191,26 @@ export class PaymentService {
   private validateEnvironmentConfig(): void {
     if (!this.paystackSecret) {
       throw new BadRequestException('Payment service configuration error: Missing Paystack secret key');
+    }
+
+    // Check if it's the correct key format
+    if (!this.paystackSecret.startsWith('sk_')) {
+      this.logger.error('Invalid Paystack secret key format. Expected format: sk_...');
+      throw new BadRequestException('Payment service configuration error: Invalid secret key format');
+    }
+
+    // Check environment-specific key
+    const isProduction = process.env.NODE_ENV === 'production';
+    const isLiveKey = this.paystackSecret.startsWith('sk_live_');
+    const isTestKey = this.paystackSecret.startsWith('sk_test_');
+
+    if (isProduction && !isLiveKey) {
+      this.logger.error('Production environment detected but using test key');
+      throw new BadRequestException('Payment service configuration error: Production requires live secret key');
+    }
+
+    if (!isProduction && !isTestKey) {
+      this.logger.warn('Development environment but using live key - this is unusual but allowed');
     }
 
     if (!process.env.PAYMENT_CALLBACK_URL) {
@@ -468,7 +497,7 @@ export class PaymentService {
   }
 
   /**
-   * Call Paystack API with proper error handling
+   * Call Paystack API with proper error handling and enhanced debugging
    */
   private async callPaystackAPI(endpoint: string, payload?: any): Promise<any> {
     try {
@@ -479,7 +508,9 @@ export class PaymentService {
 
       this.logger.log(`Making Paystack API call to: ${endpoint}`, {
         hasPayload: !!payload,
-        payloadKeys: payload ? Object.keys(payload) : []
+        payloadKeys: payload ? Object.keys(payload) : [],
+        url: `${this.baseUrl}${endpoint}`,
+        headersSet: Object.keys(config.headers)
       });
 
       const response = await firstValueFrom(
@@ -490,7 +521,8 @@ export class PaymentService {
 
       this.logger.log(`Paystack API call successful for ${endpoint}`, {
         status: response.status,
-        responseStatus: response.data?.status
+        responseStatus: response.data?.status,
+        responseDataKeys: response.data ? Object.keys(response.data) : []
       });
 
       return response.data;
@@ -500,20 +532,45 @@ export class PaymentService {
         error: error.message,
         response: error.response?.data || null,
         status: error.response?.status || null,
-        statusText: error.response?.statusText || null
+        statusText: error.response?.statusText || null,
+        code: error.code,
+        url: `${this.baseUrl}${endpoint}`,
+        timeout: error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT',
+        networkError: !error.response && error.code,
+        paystackSecretExists: !!this.paystackSecret,
+        paystackSecretFormat: this.paystackSecret ? this.paystackSecret.substring(0, 8) + '...' : 'N/A'
       };
 
       this.logger.error(`Paystack API call failed for ${endpoint}:`, errorInfo);
 
       // Provide more specific error messages based on the error type
       if (error.response?.status === 401) {
+        this.logger.error('Authentication failed - check your Paystack secret key');
         throw new BadRequestException('Payment service authentication failed. Please contact support.');
       } else if (error.response?.status === 400) {
         const message = error.response?.data?.message || 'Invalid payment request';
+        this.logger.error(`Bad request to Paystack: ${message}`, error.response?.data);
         throw new BadRequestException(`Payment error: ${message}`);
+      } else if (error.response?.status === 403) {
+        this.logger.error('Forbidden - check your Paystack account permissions');
+        throw new BadRequestException('Payment service access denied. Please contact support.');
+      } else if (error.response?.status >= 500) {
+        this.logger.error('Paystack server error - their service may be down');
+        throw new BadRequestException('Payment service is experiencing issues. Please try again in a few minutes.');
       } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+        this.logger.error('Request timeout to Paystack API');
         throw new BadRequestException('Payment service timeout. Please try again.');
+      } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+        this.logger.error('Network error connecting to Paystack');
+        throw new BadRequestException('Unable to connect to payment service. Check your internet connection.');
+      } else if (!error.response && error.code) {
+        this.logger.error(`Network error: ${error.code}`);
+        throw new BadRequestException(`Network error occurred: ${error.code}. Please check your connection.`);
       } else {
+        this.logger.error('Unknown error occurred during Paystack API call', { 
+          errorType: error.constructor.name,
+          errorDetails: error
+        });
         throw new BadRequestException('Payment service temporarily unavailable. Please try again.');
       }
     }
