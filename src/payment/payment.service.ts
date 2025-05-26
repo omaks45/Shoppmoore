@@ -28,6 +28,9 @@ export class PaymentService {
     this.logger.log(`Initializing transaction for user: ${dto.userId}`);
 
     try {
+      // Validate environment configuration
+      this.validateEnvironmentConfig();
+
       // Validate input
       this.validateTransactionInput(dto);
 
@@ -40,11 +43,14 @@ export class PaymentService {
       // Prepare payment payload
       const paystackPayload = this.buildPaystackPayload(dto, cartData, reference);
       
-      // Log payment details
+      // Log payment details for debugging
       this.logPaymentDetails(cartData, paystackPayload);
 
       // Initialize transaction with Paystack
       const response = await this.callPaystackAPI('/transaction/initialize', paystackPayload);
+
+      // Validate Paystack response structure
+      this.validatePaystackResponse(response);
 
       this.logger.log(`Transaction initialized successfully. Reference: ${reference}`);
       return response.data;
@@ -52,7 +58,9 @@ export class PaymentService {
     } catch (error) {
       this.logger.error(`Failed to initialize transaction for user ${dto.userId}:`, {
         error: error.message,
-        stack: error.stack
+        stack: error.stack,
+        userId: dto.userId,
+        email: dto.email
       });
       
       // Re-throw known errors
@@ -60,7 +68,7 @@ export class PaymentService {
         throw error;
       }
       
-      throw new BadRequestException('Failed to initialize payment. Please try again.');
+      throw new BadRequestException(`Payment initialization failed: ${error.message || 'Unknown error occurred'}`);
     }
   }
 
@@ -69,6 +77,8 @@ export class PaymentService {
    */
   async handleWebhook(payload: any): Promise<void> {
     const { event, data } = payload;
+
+    this.logger.log(`Received webhook event: ${event}`);
 
     if (event === 'charge.success') {
       await this.handleSuccessfulPayment(data);
@@ -82,18 +92,25 @@ export class PaymentService {
    */
   async verifyTransactionByReference(reference: string): Promise<any> {
     try {
+      this.logger.log(`Verifying transaction with reference: ${reference}`);
+      
       const verification = await this.verifyTransaction(reference);
       
       if (!verification.status) {
-        this.logger.warn(`Transaction verification failed for reference: ${reference}`);
+        this.logger.warn(`Transaction verification failed for reference: ${reference}`, {
+          verification
+        });
       } else {
         this.logger.log(`Transaction verified successfully - Ref: ${reference}, Amount: ₦${verification.data.amount / 100}`);
       }
       
       return verification;
     } catch (error) {
-      this.logger.error(`Error verifying transaction ${reference}:`, error.message);
-      throw new BadRequestException('Transaction verification failed');
+      this.logger.error(`Error verifying transaction ${reference}:`, {
+        error: error.message,
+        stack: error.stack
+      });
+      throw new BadRequestException(`Transaction verification failed: ${error.message}`);
     }
   }
 
@@ -124,16 +141,30 @@ export class PaymentService {
    */
   verifySignature(req: any): boolean {
     try {
+      if (!this.paystackSecret) {
+        this.logger.error('Paystack secret key not configured');
+        return false;
+      }
+
       const hash = crypto
         .createHmac('sha512', this.paystackSecret)
         .update(req.rawBody)
         .digest('hex');
 
       const signature = req.headers['x-paystack-signature'];
+      
+      if (!signature) {
+        this.logger.warn('No Paystack signature found in headers');
+        return false;
+      }
+
       const isValid = hash === signature;
 
       if (!isValid) {
-        this.logger.warn('Invalid Paystack webhook signature');
+        this.logger.warn('Invalid Paystack webhook signature', {
+          expectedHash: hash,
+          receivedSignature: signature
+        });
       }
 
       return isValid;
@@ -144,6 +175,19 @@ export class PaymentService {
   }
 
   /** ================== PRIVATE METHODS ================== */
+
+  /**
+   * Validate environment configuration
+   */
+  private validateEnvironmentConfig(): void {
+    if (!this.paystackSecret) {
+      throw new BadRequestException('Payment service configuration error: Missing Paystack secret key');
+    }
+
+    if (!process.env.PAYMENT_CALLBACK_URL) {
+      this.logger.warn('Payment callback URL not configured');
+    }
+  }
 
   /**
    * Validate transaction input parameters
@@ -160,26 +204,72 @@ export class PaymentService {
     if (!Types.ObjectId.isValid(dto.userId)) {
       throw new BadRequestException('Invalid user ID format');
     }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(dto.email)) {
+      throw new BadRequestException('Invalid email format');
+    }
+  }
+
+  /**
+   * Validate Paystack API response structure
+   */
+  private validatePaystackResponse(response: any): void {
+    if (!response) {
+      throw new BadRequestException('No response received from payment gateway');
+    }
+
+    if (!response.status) {
+      const errorMessage = response.message || 'Payment gateway returned unsuccessful status';
+      this.logger.error('Paystack API error:', {
+        status: response.status,
+        message: response.message,
+        fullResponse: response
+      });
+      throw new BadRequestException(`Payment initialization failed: ${errorMessage}`);
+    }
+
+    if (!response.data) {
+      this.logger.error('Invalid Paystack response structure - missing data:', response);
+      throw new BadRequestException('Invalid response from payment gateway');
+    }
+
+    const requiredFields = ['authorization_url', 'access_code', 'reference'];
+    const missingFields = requiredFields.filter(field => !response.data[field]);
+
+    if (missingFields.length > 0) {
+      this.logger.error('Missing required fields in Paystack response:', {
+        missingFields,
+        responseData: response.data
+      });
+      throw new BadRequestException(`Payment gateway response missing required fields: ${missingFields.join(', ')}`);
+    }
   }
 
   /**
    * Get and validate user's cart with comprehensive error handling
    */
   private async getValidatedCart(userId: string): Promise<any> {
+    this.logger.log(`Getting cart for user: ${userId}`);
+    
     // Find cart using multiple strategies
     const cartData = await this.findUserCart(userId);
 
     if (!cartData) {
+      this.logger.warn(`No cart found for user: ${userId}`);
       throw new NotFoundException('No cart found. Please add items to your cart first.');
     }
 
     if (!cartData.items || cartData.items.length === 0) {
+      this.logger.warn(`Empty cart found for user: ${userId}`);
       throw new NotFoundException('Cart is empty. Please add items to your cart before proceeding to payment.');
     }
 
     // Validate cart items
     this.validateCartItems(cartData.items);
 
+    this.logger.log(`Cart validated successfully for user: ${userId}. Items: ${cartData.items.length}`);
     return cartData;
   }
 
@@ -191,32 +281,50 @@ export class PaymentService {
     let cartExists = null;
     let actualUserId = null;
 
-    // Strategy 1: Query with ObjectId
-    cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj }).lean();
-    if (cartExists) {
-      actualUserId = cartExists.userId;
-    } else {
-      // Strategy 2: Query with string userId
-      cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userId }).lean();
+    try {
+      // Strategy 1: Query with ObjectId
+      cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userIdObj }).lean();
       if (cartExists) {
         actualUserId = cartExists.userId;
+        this.logger.log(`Cart found using ObjectId strategy for user: ${userId}`);
       } else {
-        // Strategy 3: Query with multiple formats
-        cartExists = await this.orderService.cartService.cartModel.findOne({ 
-          userId: { $in: [userIdObj, userId, userIdObj.toString()] }
-        }).lean();
+        // Strategy 2: Query with string userId
+        cartExists = await this.orderService.cartService.cartModel.findOne({ userId: userId }).lean();
         if (cartExists) {
           actualUserId = cartExists.userId;
+          this.logger.log(`Cart found using string strategy for user: ${userId}`);
+        } else {
+          // Strategy 3: Query with multiple formats
+          cartExists = await this.orderService.cartService.cartModel.findOne({ 
+            userId: { $in: [userIdObj, userId, userIdObj.toString()] }
+          }).lean();
+          if (cartExists) {
+            actualUserId = cartExists.userId;
+            this.logger.log(`Cart found using multiple formats strategy for user: ${userId}`);
+          }
         }
       }
-    }
 
-    if (!actualUserId) {
-      return null;
-    }
+      if (!actualUserId) {
+        this.logger.warn(`No cart found with any strategy for user: ${userId}`);
+        return null;
+      }
 
-    // Get full cart data using the found userId format
-    return this.orderService.cartService.getFullCart(actualUserId);
+      // Get full cart data using the found userId format
+      const fullCart = await this.orderService.cartService.getFullCart(actualUserId);
+      this.logger.log(`Full cart retrieved for user: ${userId}`, {
+        itemCount: fullCart.items?.length || 0,
+        total: fullCart.totalWithShipping
+      });
+      
+      return fullCart;
+    } catch (error) {
+      this.logger.error(`Error finding cart for user ${userId}:`, {
+        error: error.message,
+        stack: error.stack
+      });
+      throw error;
+    }
   }
 
   /**
@@ -233,7 +341,16 @@ export class PaymentService {
     );
 
     if (invalidItems.length > 0) {
-      this.logger.error('Invalid cart items found:', invalidItems);
+      this.logger.error('Invalid cart items found:', {
+        invalidItemsCount: invalidItems.length,
+        totalItems: items.length,
+        invalidItems: invalidItems.map(item => ({
+          productId: item.productId,
+          priceSnapshot: item.priceSnapshot,
+          total: item.total,
+          quantity: item.quantity
+        }))
+      });
       throw new BadRequestException('Some items in your cart have invalid prices or quantities. Please refresh your cart and try again.');
     }
   }
@@ -242,7 +359,12 @@ export class PaymentService {
    * Generate unique payment reference
    */
   private generatePaymentReference(userId: string): string {
-    return `TXN-${Date.now()}-${userId}`;
+    const timestamp = Date.now();
+    const randomSuffix = Math.random().toString(36).substr(2, 6);
+    const reference = `TXN-${timestamp}-${userId}-${randomSuffix}`;
+    
+    this.logger.log(`Generated payment reference: ${reference}`);
+    return reference;
   }
 
   /**
@@ -253,17 +375,22 @@ export class PaymentService {
     const totalWithShipping = cartData.totalWithShipping;
     const shippingFee = totalWithShipping - subtotal;
 
-    // Validate minimum amount
+    // Validate minimum amount (Paystack minimum is ₦1)
     if (totalWithShipping < 1) {
       throw new BadRequestException('Transaction amount must be at least ₦1');
     }
 
-    return {
-      email: dto.email,
+    // Validate maximum amount (adjust based on your business needs)
+    if (totalWithShipping > 10000000) { // 10 million naira
+      throw new BadRequestException('Transaction amount exceeds maximum limit');
+    }
+
+    const payload = {
+      email: dto.email.toLowerCase().trim(),
       amount: Math.round(totalWithShipping * 100), // Convert to kobo
       currency: 'NGN',
       reference: reference,
-      callback_url: process.env.PAYMENT_CALLBACK_URL,
+      callback_url: process.env.PAYMENT_CALLBACK_URL || undefined,
       metadata: {
         userId: dto.userId,
         cartItemsCount: cartData.items.length,
@@ -283,6 +410,15 @@ export class PaymentService {
         ]
       }
     };
+
+    this.logger.log(`Built Paystack payload:`, {
+      email: payload.email,
+      amount: payload.amount,
+      reference: payload.reference,
+      itemCount: payload.metadata.cartItemsCount
+    });
+
+    return payload;
   }
 
   /**
@@ -292,11 +428,15 @@ export class PaymentService {
     const subTotal = cartData.items.reduce((sum: number, item) => sum + Number(item.total), 0);
     const shippingFee = cartData.totalWithShipping - subTotal;
 
-    this.logger.log(`Payment breakdown for user ${paystackPayload.metadata.userId}:`);
-    this.logger.log(`- Subtotal: ₦${subTotal}`);
-    this.logger.log(`- Shipping: ₦${shippingFee}`);
-    this.logger.log(`- Total: ₦${cartData.totalWithShipping}`);
-    this.logger.log(`- Amount to Paystack (kobo): ${paystackPayload.amount}`);
+    this.logger.log(`=== Payment Breakdown for User ${paystackPayload.metadata.userId} ===`);
+    this.logger.log(`Items Count: ${cartData.items.length}`);
+    this.logger.log(`Subtotal: ₦${subTotal.toLocaleString()}`);
+    this.logger.log(`Shipping: ₦${shippingFee.toLocaleString()}`);
+    this.logger.log(`Total: ₦${cartData.totalWithShipping.toLocaleString()}`);
+    this.logger.log(`Paystack Amount (kobo): ${paystackPayload.amount.toLocaleString()}`);
+    this.logger.log(`Reference: ${paystackPayload.reference}`);
+    this.logger.log(`Email: ${paystackPayload.email}`);
+    this.logger.log(`===============================================`);
   }
 
   /**
@@ -313,10 +453,16 @@ export class PaymentService {
         await this.orderService.markOrderAsPaid(reference);
         this.logger.log(`Order processed successfully for reference: ${reference}`);
       } else {
-        this.logger.warn(`Payment verification failed for reference: ${reference}`);
+        this.logger.warn(`Payment verification failed for reference: ${reference}`, {
+          verificationStatus: verification.status,
+          dataStatus: verification.data?.status
+        });
       }
     } catch (error) {
-      this.logger.error(`Failed to process successful payment for reference ${reference}:`, error.message);
+      this.logger.error(`Failed to process successful payment for reference ${reference}:`, {
+        error: error.message,
+        stack: error.stack
+      });
       // Don't throw here to avoid webhook failures
     }
   }
@@ -328,7 +474,13 @@ export class PaymentService {
     try {
       const config = {
         headers: this.buildHeaders(),
+        timeout: 30000, // 30 seconds timeout
       };
+
+      this.logger.log(`Making Paystack API call to: ${endpoint}`, {
+        hasPayload: !!payload,
+        payloadKeys: payload ? Object.keys(payload) : []
+      });
 
       const response = await firstValueFrom(
         payload 
@@ -336,13 +488,34 @@ export class PaymentService {
           : this.httpService.get(`${this.baseUrl}${endpoint}`, config)
       );
 
+      this.logger.log(`Paystack API call successful for ${endpoint}`, {
+        status: response.status,
+        responseStatus: response.data?.status
+      });
+
       return response.data;
     } catch (error) {
-      this.logger.error(`Paystack API call failed for ${endpoint}:`, {
+      const errorInfo = {
+        endpoint,
         error: error.message,
-        response: error.response?.data || null
-      });
-      throw new BadRequestException('Payment service temporarily unavailable. Please try again.');
+        response: error.response?.data || null,
+        status: error.response?.status || null,
+        statusText: error.response?.statusText || null
+      };
+
+      this.logger.error(`Paystack API call failed for ${endpoint}:`, errorInfo);
+
+      // Provide more specific error messages based on the error type
+      if (error.response?.status === 401) {
+        throw new BadRequestException('Payment service authentication failed. Please contact support.');
+      } else if (error.response?.status === 400) {
+        const message = error.response?.data?.message || 'Invalid payment request';
+        throw new BadRequestException(`Payment error: ${message}`);
+      } else if (error.code === 'ECONNABORTED' || error.code === 'ETIMEDOUT') {
+        throw new BadRequestException('Payment service timeout. Please try again.');
+      } else {
+        throw new BadRequestException('Payment service temporarily unavailable. Please try again.');
+      }
     }
   }
 
@@ -351,16 +524,31 @@ export class PaymentService {
    */
   private async verifyTransaction(reference: string): Promise<any> {
     try {
+      this.logger.log(`Verifying transaction with Paystack: ${reference}`);
+      
       const response = await this.callPaystackAPI(`/transaction/verify/${reference}`);
       
       if (response.status && response.data) {
-        this.logger.log(`Transaction verified - Ref: ${reference}, Amount: ₦${response.data.amount / 100}, Status: ${response.data.status}`);
+        this.logger.log(`Transaction verified successfully:`, {
+          reference,
+          amount: `₦${response.data.amount / 100}`,
+          status: response.data.status,
+          gateway_response: response.data.gateway_response
+        });
+      } else {
+        this.logger.warn(`Transaction verification returned false status:`, {
+          reference,
+          response
+        });
       }
       
       return response;
     } catch (error) {
-      this.logger.error(`Transaction verification failed for ${reference}:`, error.message);
-      return { status: false };
+      this.logger.error(`Transaction verification failed for ${reference}:`, {
+        error: error.message,
+        stack: error.stack
+      });
+      return { status: false, message: error.message };
     }
   }
 
@@ -371,6 +559,7 @@ export class PaymentService {
     return {
       Authorization: `Bearer ${this.paystackSecret}`,
       'Content-Type': 'application/json',
+      'User-Agent': 'YourApp/1.0', // Add user agent for better tracking
     };
   }
 }
