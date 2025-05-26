@@ -41,7 +41,7 @@ import redisStore from 'cache-manager-redis-store';
         return {
           store: redisStore,
           url: redisUrl,
-          ttl: 5,
+          ttl: 120,
           max: 1000,
         };
       },
