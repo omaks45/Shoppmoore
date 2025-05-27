@@ -6,17 +6,24 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const isDevelopment = process.env.NODE_ENV === 'development';
+  const NODE_ENV = process.env.NODE_ENV;
+  const isProduction = NODE_ENV === 'production';
+  const isDevelopment = NODE_ENV === 'development';
 
+  // Restrict Nest logger based on environment
   const app = await NestFactory.create(AppModule, {
-    logger: isProduction
-      ? ['error', 'warn'] // limit logs in production
-      : ['error', 'warn', 'log', 'debug', 'verbose'],
+    logger: isProduction ? ['error', 'warn'] : ['log', 'debug', 'error', 'warn', 'verbose'],
   });
 
   const logger = new Logger('Bootstrap');
   const configService = app.get(ConfigService);
+
+  // Clean up console logs in production
+  if (isProduction) {
+    console.log = () => {};
+    console.debug = () => {};
+    console.info = () => {};
+  }
 
   // Global validation
   app.useGlobalPipes(
@@ -28,7 +35,7 @@ async function bootstrap() {
     }),
   );
 
-  // CORS
+  // CORS configuration
   const allowedOrigins = (configService.get<string>('ALLOWED_ORIGINS') || '')
     .split(',')
     .map(origin => origin.trim().replace(/\/$/, ''));
@@ -47,7 +54,7 @@ async function bootstrap() {
     logger.debug('CORS Allowed Origins: ' + allowedOrigins.join(', '));
   }
 
-  // Swagger
+  // Swagger setup (always enabled)
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shoppmoore API')
     .setDescription('E-commerce API documentation')
@@ -60,14 +67,14 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
   logger.log('Swagger documentation available at /api');
 
-  // Start server
+  // Start application
   const port = process.env.PORT || configService.get<number>('PORT') || 5000;
   await app.listen(port);
-  logger.log(`Server is running on port ${port} in ${process.env.NODE_ENV || 'development'} mode`);
+  logger.log(`Server is running on port ${port} in ${NODE_ENV || 'development'} mode`);
 
   if (isDevelopment) {
-    logger.debug(`🌍 Server URL: ${await app.getUrl()}`);
-    logger.debug('🛠 Debug logs enabled');
+    logger.debug(`Server URL: ${await app.getUrl()}`);
+    logger.debug('Debug logs enabled');
   }
 
   // Graceful shutdown
@@ -83,7 +90,7 @@ async function bootstrap() {
     process.exit(0);
   });
 
-  // Error handling
+  // Global error logging
   process.on('uncaughtException', (err) => {
     logger.error('Uncaught Exception', err.stack || err);
     process.exit(1);
