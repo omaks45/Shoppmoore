@@ -6,28 +6,17 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
-    logger: process.env.NODE_ENV === 'production'
-      ? ['error', 'warn']
-      : ['error', 'warn', 'log', 'debug', 'verbose'],
-  });
-
-  const configService = app.get(ConfigService);
-  const logger = new Logger('Bootstrap');
   const isProduction = process.env.NODE_ENV === 'production';
   const isDevelopment = process.env.NODE_ENV === 'development';
 
-  // Limit console logs in production
-  if (isProduction) {
-    const originalConsoleLog = console.log;
-    console.log = (...args: any[]) => {
-      if (args[0]?.includes?.('Server is running') || args[0]?.includes?.('Bootstrap')) {
-        originalConsoleLog(...args);
-      }
-    };
-    console.debug = () => {};
-    console.info = () => {};
-  }
+  const app = await NestFactory.create(AppModule, {
+    logger: isProduction
+      ? ['error', 'warn'] // limit logs in production
+      : ['error', 'warn', 'log', 'debug', 'verbose'],
+  });
+
+  const logger = new Logger('Bootstrap');
+  const configService = app.get(ConfigService);
 
   // Global validation
   app.useGlobalPipes(
@@ -55,10 +44,10 @@ async function bootstrap() {
   });
 
   if (isDevelopment) {
-    console.log('CORS Allowed Origins:', allowedOrigins);
+    logger.debug('CORS Allowed Origins: ' + allowedOrigins.join(', '));
   }
 
-  // Swagger is always enabled
+  // Swagger
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Shoppmoore API')
     .setDescription('E-commerce API documentation')
@@ -77,8 +66,8 @@ async function bootstrap() {
   logger.log(`Server is running on port ${port} in ${process.env.NODE_ENV || 'development'} mode`);
 
   if (isDevelopment) {
-    logger.log(`Server URL: ${await app.getUrl()}`);
-    logger.log('Debug logs enabled');
+    logger.debug(`🌍 Server URL: ${await app.getUrl()}`);
+    logger.debug('🛠 Debug logs enabled');
   }
 
   // Graceful shutdown
@@ -94,19 +83,21 @@ async function bootstrap() {
     process.exit(0);
   });
 
+  // Error handling
   process.on('uncaughtException', (err) => {
-    logger.error('Uncaught Exception:', err);
+    logger.error('Uncaught Exception', err.stack || err);
     process.exit(1);
   });
 
   process.on('unhandledRejection', (reason, promise) => {
-    logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    logger.error('Unhandled Rejection at:', promise);
+    logger.error('Reason:', reason);
     process.exit(1);
   });
 }
 
 bootstrap().catch((err) => {
   const logger = new Logger('Bootstrap');
-  logger.error('Failed to start application:', err);
+  logger.error('Failed to start application', err.stack || err);
   process.exit(1);
 });
