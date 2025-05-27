@@ -256,10 +256,9 @@ export class OrderService {
   private async updateProductStocks(cartItems: any[], session: any): Promise<void> {
     const stockUpdates = cartItems.map(async (item) => {
       const productId = item.productId._id || item.productId;
-      await this.productService.updateStockAfterOrder(
-        productId.toString(), 
-        item.quantity
-      );
+      await this.productService.updateBulkAvailableQuantity([
+        { productId: productId.toString(), newQuantity: item.quantity }
+      ]);
     });
 
     await Promise.all(stockUpdates);

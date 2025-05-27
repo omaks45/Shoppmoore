@@ -3,7 +3,8 @@
  * CreateProductDto
  *
  * This DTO is used for creating a new product.
- * 'createdBy' is now handled automatically via JWT, not passed in the body.
+ * Analytical fields (stockOutCount, salesCount, stockCount) and isAvailable 
+ * are handled automatically and not included in the request body.
  */
 
 import { ApiProperty } from '@nestjs/swagger';
@@ -12,8 +13,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsNumber,
-  IsBoolean,
-  //Min,
+  Min,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -72,6 +72,7 @@ export class CreateProductDto {
     example: 5999,
   })
   @IsNumber()
+  @Min(0, { message: 'Price must be a positive number' })
   price: number;
 
   @ApiProperty({
@@ -88,37 +89,14 @@ export class CreateProductDto {
     example: 100,
   })
   @IsNumber()
-  @IsNotEmpty()
+  @Min(0, { message: 'Available quantity must be a non-negative number' })
   availableQuantity: number;
 
-
-  @ApiProperty({ required: false, example: true, description: 'Product availability' })
-  @IsBoolean()
-  @IsOptional()
-  isAvailable?: boolean;
-
-  @ApiProperty({ required: false, example: 0, description: 'Count of times product went out of stock' })
-  @IsNumber()
-  @IsOptional()
-  stockOutCount?: number;
-
-  @ApiProperty({ required: false, example: 0, description: 'Total units sold' })
-  @IsNumber()
-  @IsOptional()
-  salesCount?: number;
-
-  @ApiProperty({ required: false, example: null, description: 'Total stock count' })
-  @IsNumber()
-  @IsOptional()
-  stockCount?: number;
   @ApiProperty({
     type: 'string',
     format: 'binary',
+    description: 'Product images',
+    required: false,
   })
   imageUrls?: string[];
-  
-  
 }
-
-
-// Removed duplicate and incorrect declaration of imageUrls property

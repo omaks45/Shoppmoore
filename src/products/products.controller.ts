@@ -16,7 +16,7 @@ import {
   DefaultValuePipe,
   Patch,
 } from '@nestjs/common';
-import { FileFieldsInterceptor, FilesInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiConsumes, ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody, ApiParam } from '@nestjs/swagger';
 import { ProductService } from '../products/products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -51,10 +51,7 @@ export class ProductController {
         price: { type: 'number', example: 5999 },
         description: { type: 'string', example: 'Ergonomic wireless mouse...' },
         availableQuantity: { type: 'number', example: 100 },
-        isAvailable: { type: 'boolean', example: true },
-        stockOutCount: { type: 'number', example: 0 },
-        salesCount: { type: 'number', example: 0 },
-        stockCount: { type: 'number', example: 100 },
+        
         images: {
           type: 'array',
           items: {
@@ -215,25 +212,42 @@ export class ProductController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
-  @UseInterceptors(FileFieldsInterceptor([{ name: 'images', maxCount: 5 }]))
-  @ApiOperation({ summary: 'Update an existing product with optional images' })
-  @ApiConsumes('multipart/form-data')
-  @ApiParam({ name: 'id', description: 'Product ID' })
-  @ApiBody({ 
-    type: UpdateProductDto,
-    description: 'Product update data with optional images'
-  })
-  @ApiResponse({ status: 200, description: 'Product successfully updated' })
-  @ApiResponse({ status: 404, description: 'Product not found' })
-  async update(
-    @Param('id') id: string,
-    @UploadedFiles() files: { images?: Express.Multer.File[] },
-    @Body() updateDto: UpdateProductDto,
-    @CurrentUser() user: any,
-  ): Promise<Product> {
-    return this.productService.update(id, updateDto, files?.images, user);
-  }
+@UseGuards(JwtAuthGuard, TokenBlacklistGuard)
+@UseInterceptors(FilesInterceptor('images', 5)) // Max 5 images
+@ApiConsumes('multipart/form-data')
+@ApiOperation({ summary: 'Update an existing product with optional images' })
+@ApiParam({ name: 'id', description: 'Product ID' })
+@ApiBody({
+  description: 'Product update data with optional images',
+  schema: {
+    type: 'object',
+    properties: {
+      name: { type: 'string', example: 'Wireless Mouse' },
+      category: { type: 'string', example: 'Electronics' },
+      subcategory: { type: 'string', example: 'Computer Accessories' },
+      brandName: { type: 'string', example: 'Logitech' },
+      unit: { type: 'string', example: 'pcs' },
+      SKU: { type: 'string', example: 'WM-2023-BLK' },
+      price: { type: 'number', example: 5999 },
+      description: { type: 'string', example: 'Updated product description' },
+      availableQuantity: { type: 'number', example: 100 },
+      images: {
+        type: 'array',
+        items: { type: 'string', format: 'binary' },
+      },
+    },
+  },
+})
+@ApiResponse({ status: 200, description: 'Product successfully updated' })
+@ApiResponse({ status: 404, description: 'Product not found' })
+async update(
+  @Param('id') id: string,
+  @UploadedFiles() files: Express.Multer.File[], // Match create()
+  @Body() updateDto: UpdateProductDto,
+  @CurrentUser() user: any,
+): Promise<Product> {
+  return this.productService.update(id, updateDto, files || [], user);
+}
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, TokenBlacklistGuard)
@@ -328,7 +342,12 @@ export class ProductController {
   async updateBulkStock(
     @Body() body: { updates: { productId: string; newStock: number }[] }
   ): Promise<{ message: string }> {
-    await this.productService.updateBulkStock(body.updates);
+    await this.productService.updateBulkAvailableQuantity(
+      body.updates.map(({ productId, newStock }) => ({
+        productId,
+        newQuantity: newStock,
+      }))
+    );
     return { message: 'Bulk stock update completed successfully' };
   }
 
@@ -347,8 +366,8 @@ export class ProductController {
     @Query('quantity', ParseIntPipe) quantity: number,
   ): Promise<{ message: string }> {
     // Convert to bulk operation format
-    await this.productService.updateBulkStock([
-      { productId, newStock: quantity } // Note: This assumes quantity is the new stock, not reduction
+    await this.productService.updateBulkAvailableQuantity([
+      { productId, newQuantity: quantity } // Note: This assumes quantity is the new stock, not reduction
     ]);
     return { message: 'Stock updated successfully' };
   }

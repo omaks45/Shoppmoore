@@ -8,7 +8,7 @@ import {
   //InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { Product, ProductDocument } from '../products/product.schema';
 import { CreateProductDto } from '../products/dto/create-product.dto';
 import { UpdateProductDto } from '../products/dto/update-product.dto';
@@ -20,18 +20,8 @@ import { ConfigService } from '@nestjs/config';
 import { CacheService, CacheKeyGenerator, CacheTag, CACHE_CONFIG } from '../types/cache.service';
 import { PipelineStage } from 'mongoose';
 
-
-
-// New interface for stock validation
-
-
-
 @Injectable()
 export class ProductService {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  updateStockAfterOrder(arg0: any, quantity: any) {
-    throw new Error('Method not implemented.');
-  }
   private readonly logger = new Logger(ProductService.name);
   private readonly isProd: boolean;
 
@@ -44,6 +34,24 @@ export class ProductService {
     private readonly cacheService: CacheService,
   ) {
     this.isProd = this.configService.get<string>('NODE_ENV') === 'production';
+  }
+
+  /**
+   * Helper method to validate and convert ObjectId
+   */
+  private validateObjectId(id: string): Types.ObjectId | null {
+    try {
+      return Types.ObjectId.isValid(id) ? new Types.ObjectId(id) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Helper method to determine availability based on availableQuantity
+   */
+  private determineAvailability(quantity: number): boolean {
+    return quantity > 0;
   }
 
   /**
@@ -70,29 +78,28 @@ export class ProductService {
       {
         $facet: {
           data: [
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $lookup: {
-              from: 'categories',
-              localField: 'category',
-              foreignField: '_id',
-              as: 'category',
-              pipeline: [{ $project: { name: 1 } }],
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $lookup: {
+                from: 'categories',
+                localField: 'category',
+                foreignField: '_id',
+                as: 'category',
+                pipeline: [{ $project: { name: 1 } }],
+              },
             },
-          },
-          {
-            $unwind: {
-              path: '$category',
-              preserveNullAndEmptyArrays: true,
+            {
+              $unwind: {
+                path: '$category',
+                preserveNullAndEmptyArrays: true,
+              },
             },
-          },
           ],
           totalCount: [{ $count: 'count' }],
         },
-      } ,
-    ] ;
-
+      },
+    ];
 
     const [result] = await this.productModel.aggregate(pipeline);
     const totalItems = result.totalCount[0]?.count || 0;
@@ -113,9 +120,14 @@ export class ProductService {
    */
   private async getAdminProductsFromDb(adminId: string, page: number, limit: number): Promise<PaginatedResponse<Product>> {
     const skip = (page - 1) * limit;
+    const adminObjectId = this.validateObjectId(adminId);
+    
+    if (!adminObjectId) {
+      throw new BadRequestException('Invalid admin ID format');
+    }
     
     const pipeline: PipelineStage[] = [
-      { $match: { isDeleted: false, createdBy: adminId } },
+      { $match: { isDeleted: false, createdBy: adminObjectId } },
       {
         $sort: { createdAt: -1 },
       },
@@ -133,18 +145,17 @@ export class ProductService {
                 pipeline: [{ $project: { name: 1 } }],
               },
             },
-          {
-            $unwind: {
-              path: '$category',
-              preserveNullAndEmptyArrays: true,
+            {
+              $unwind: {
+                path: '$category',
+                preserveNullAndEmptyArrays: true,
+              },
             },
-          },
           ],
           totalCount: [{ $count: 'count' }],
         },
       },
     ];
-
 
     const [result] = await this.productModel.aggregate(pipeline);
     const totalItems = result.totalCount[0]?.count || 0;
@@ -161,7 +172,7 @@ export class ProductService {
   }
 
   /**
-   * Get category products from database
+   * Fixed: Get category products from database with proper ObjectId handling
    */
   private async getCategoryProductsFromDb(
     categoryId: string | undefined, 
@@ -170,46 +181,64 @@ export class ProductService {
   ): Promise<PaginatedResponse<Product>> {
     const query: any = { isDeleted: false };
     
-    if (categoryId) {
-      query.category = categoryId;
+    // Fix: Properly handle categoryId conversion to ObjectId
+    if (categoryId && categoryId !== 'all') {
+      const categoryObjectId = this.validateObjectId(categoryId);
+      if (!categoryObjectId) {
+        this.logger.warn(`Invalid category ID format: ${categoryId}`);
+        // Return empty result for invalid category ID
+        return {
+          data: [],
+          metadata: {
+            totalItems: 0,
+            totalPages: 0,
+            currentPage: page,
+            pageSize: limit,
+          },
+        };
+      }
+      query.category = categoryObjectId;
     }
 
     const skip = (page - 1) * limit;
     
-    const pipeline: PipelineStage[] = [
+    this.logger.debug(`Category query: ${JSON.stringify(query)}`);
     
+    const pipeline: PipelineStage[] = [
       { $match: query },
       {
         $sort: { createdAt: -1 },
       },
       {
         $facet: {
-        data: [
-          { $skip: skip },
-          { $limit: limit },
-          {
-            $lookup: {
-              from: 'categories',
-              localField: 'category',
-              foreignField: '_id',
-              as: 'category',
-              pipeline: [{ $project: { name: 1 } }],
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $lookup: {
+                from: 'categories',
+                localField: 'category',
+                foreignField: '_id',
+                as: 'category',
+                pipeline: [{ $project: { name: 1 } }],
+              },
             },
-          },
-          {
-            $unwind: {
-             path: '$category',
-             preserveNullAndEmptyArrays: true,
+            {
+              $unwind: {
+                path: '$category',
+                preserveNullAndEmptyArrays: true,
+              },
             },
-           } ,
-        ],
-        totalCount: [{ $count: 'count' }],
-       },
-     } ,
-   ] ;
+          ],
+          totalCount: [{ $count: 'count' }],
+        },
+      },
+    ];
 
     const [result] = await this.productModel.aggregate(pipeline);
     const totalItems = result.totalCount[0]?.count || 0;
+    
+    this.logger.debug(`Category products found: ${totalItems}`);
 
     return {
       data: result.data,
@@ -311,7 +340,7 @@ export class ProductService {
   }
 
   /**
-   * Optimized create method
+   * Optimized create method with availableQuantity
    */
   async create(createDto: CreateProductDto, files: Express.Multer.File[], user: any): Promise<Product> {
     // Validate SKU uniqueness with index hint
@@ -320,12 +349,11 @@ export class ProductService {
       throw new BadRequestException('Product with SKU already exists');
     }
 
-    // Validate stock count
-    if (createDto.stockCount === undefined || createDto.stockCount < 0) {
-      throw new BadRequestException('Stock count is required and must be a non-negative number');
+    // Validate availableQuantity
+    if (createDto.availableQuantity === undefined || createDto.availableQuantity < 0) {
+      throw new BadRequestException('Available quantity is required and must be a non-negative number');
     }
     
-    createDto.isAvailable = createDto.stockCount > 0;
     
     // Parallel image uploads
     let imageUrls: string[] = [];
@@ -338,8 +366,13 @@ export class ProductService {
       imageUrls = uploads.map(res => res.secure_url);
     }
 
+    // Convert category string to ObjectId if provided
+    const categoryId = createDto.category ? this.validateObjectId(createDto.category.toString()) : undefined;
+    
     const newProduct = new this.productModel({
       ...createDto,
+      category: categoryId,
+      isAvailable: true, 
       imageUrls,
       createdBy: user._id,
     });
@@ -400,7 +433,7 @@ export class ProductService {
   }
 
   /**
-   * Optimized update method using CacheService
+   * Optimized update method using CacheService with availableQuantity
    */
   async update(
     id: string,
@@ -408,7 +441,12 @@ export class ProductService {
     files?: Express.Multer.File[],
     user?: any,
   ): Promise<Product> {
-    const product = await this.productModel.findById(id).hint({ _id: 1 });
+    const productObjectId = this.validateObjectId(id);
+    if (!productObjectId) {
+      throw new BadRequestException('Invalid product ID format');
+    }
+
+    const product = await this.productModel.findById(productObjectId).hint({ _id: 1 });
     if (!product) throw new NotFoundException('Product not found');
 
     // Parallel image processing
@@ -421,12 +459,20 @@ export class ProductService {
       product.imageUrls = uploads.map(upload => upload.secure_url);
     }
 
-    // Stock validation
-    if (updateDto.stockCount !== undefined) {
-      if (updateDto.stockCount < 0) {
-        throw new BadRequestException('Stock count must be a non-negative number');
+    // Availability validation based on availableQuantity
+    if (updateDto.availableQuantity !== undefined) {
+      if (updateDto.availableQuantity < 0) {
+        throw new BadRequestException('Available quantity must be a non-negative number');
       }
-      updateDto.isAvailable = updateDto.stockCount > 0;
+      
+    }
+
+    // Handle category update
+    if (updateDto.category) {
+      const categoryObjectId = this.validateObjectId(updateDto.category.toString());
+      if (categoryObjectId) {
+        updateDto.category = categoryObjectId as any;
+      }
     }
 
     Object.assign(product, updateDto, { updatedBy: user._id });
@@ -446,7 +492,12 @@ export class ProductService {
    * Optimized soft delete using CacheService
    */
   async softDelete(id: string, user: any): Promise<{ message: string }> {
-    const product = await this.productModel.findById(id).hint({ _id: 1 });
+    const productObjectId = this.validateObjectId(id);
+    if (!productObjectId) {
+      throw new BadRequestException('Invalid product ID format');
+    }
+
+    const product = await this.productModel.findById(productObjectId).hint({ _id: 1 });
     if (!product || product.isDeleted) {
       throw new NotFoundException('Product not found or already deleted');
     }
@@ -472,13 +523,18 @@ export class ProductService {
    * Optimized findById using CacheService
    */
   async findById(id: string): Promise<Product> {
+    const productObjectId = this.validateObjectId(id);
+    if (!productObjectId) {
+      throw new BadRequestException('Invalid product ID format');
+    }
+
     const cacheKey = CacheKeyGenerator.product(id);
     
     const cached = await this.cacheService.get<Product>(cacheKey, 'product');
     if (cached && !cached.isDeleted) return cached;
 
     const product = await this.productModel
-      .findOne({ _id: id, isDeleted: false })
+      .findOne({ _id: productObjectId, isDeleted: false })
       .populate('category', 'name')
       .hint({ _id: 1 });
       
@@ -490,30 +546,45 @@ export class ProductService {
   }
 
   /**
-   * Find products by category using CacheService
+   * Fixed: Find products by category using CacheService with proper ObjectId handling
    */
   async findByCategory(
     categoryId: string | undefined, 
     page = 1, 
     limit = 10
   ): Promise<PaginatedResponse<Product>> {
-    const cacheKey = CacheKeyGenerator.categoryProducts(categoryId || 'all', page, limit);
+    // Create a more specific cache key that handles undefined/all cases
+    const cacheKeyId = categoryId === undefined || categoryId === 'all' ? 'all' : categoryId;
+    const cacheKey = CacheKeyGenerator.categoryProducts(cacheKeyId, page, limit);
     
+    // Try to get from cache first
     const cached = await this.cacheService.get<PaginatedResponse<Product>>(cacheKey, 'product');
-    if (cached) return cached;
+    if (cached) {
+      this.logger.debug(`Cache hit for category: ${cacheKeyId}, page: ${page}`);
+      return cached;
+    }
 
+    this.logger.debug(`Cache miss for category: ${cacheKeyId}, page: ${page} - fetching from DB`);
+    
+    // Fetch from database
     const response = await this.getCategoryProductsFromDb(categoryId, page, limit);
     
+    // Cache the response
     await this.cacheService.set(cacheKey, response, CACHE_CONFIG.TTL.MEDIUM, 'product');
+    
+    this.logger.debug(`Cached category products for: ${cacheKeyId}, items: ${response.data.length}`);
     
     return response;
   }
 
   /**
-   * Optimized stock operations with batch processing
+   * Optimized quantity validation with batch processing
    */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async validateBulkOrderQuantities(items: { productId: string; quantity: number; }[], quantity: any): Promise<{
+  async validateBulkOrderQuantities(
+    items: { productId: string; quantity: number; }[], 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    quantity: any
+  ): Promise<{
     message: any;
     isValid: boolean;
     invalidItems: Array<{ productId: string; message: string }>;
@@ -523,6 +594,11 @@ export class ProductService {
     const uncachedIds: string[] = [];
     
     for (const item of items) {
+      const productObjectId = this.validateObjectId(item.productId);
+      if (!productObjectId) {
+        continue; // Skip invalid IDs, they'll be caught in validation
+      }
+      
       const cacheKey = CacheKeyGenerator.product(item.productId);
       const cached = await this.cacheService.get<Product>(cacheKey, 'product');
       if (cached) {
@@ -535,15 +611,21 @@ export class ProductService {
     // Batch fetch uncached products
     let uncachedProducts: Product[] = [];
     if (uncachedIds.length > 0) {
-      uncachedProducts = await this.productModel
-        .find({ _id: { $in: uncachedIds }, isDeleted: false })
-        .select('_id stockCount isAvailable')
-        .hint({ _id: 1 });
-      
-      // Cache the fetched products
-      for (const product of uncachedProducts) {
-        const cacheKey = CacheKeyGenerator.product(product._id.toString());
-        await this.cacheService.set(cacheKey, product, CACHE_CONFIG.TTL.LONG, 'product');
+      const validUncachedIds = uncachedIds
+        .map(id => this.validateObjectId(id))
+        .filter(Boolean) as Types.ObjectId[];
+        
+      if (validUncachedIds.length > 0) {
+        uncachedProducts = await this.productModel
+          .find({ _id: { $in: validUncachedIds }, isDeleted: false })
+          .select('_id availableQuantity isAvailable')
+          .hint({ _id: 1 });
+        
+        // Cache the fetched products
+        for (const product of uncachedProducts) {
+          const cacheKey = CacheKeyGenerator.product(product._id.toString());
+          await this.cacheService.set(cacheKey, product, CACHE_CONFIG.TTL.LONG, 'product');
+        }
       }
     }
     
@@ -555,16 +637,21 @@ export class ProductService {
     
     const invalidItems = items
       .map(item => {
+        // Check if product ID is valid
+        if (!this.validateObjectId(item.productId)) {
+          return { productId: item.productId, message: 'Invalid product ID format' };
+        }
+        
         const product = allProducts.get(item.productId) as Product | undefined;
         
         if (!product || !product.isAvailable) {
           return { productId: item.productId, message: 'Product is not available' };
         }
         
-        if (item.quantity > product.stockCount) {
+        if (item.quantity > product.availableQuantity) {
           return { 
             productId: item.productId, 
-            message: `Only ${product.stockCount} items available in stock` 
+            message: `Only ${product.availableQuantity} items available in stock` 
           };
         }
         
@@ -580,33 +667,42 @@ export class ProductService {
   }
 
   /**
-   * Update stock quantities in bulk
+   * Update available quantities in bulk
    */
-  async updateBulkStock(updates: { productId: string; newStock: number }[]): Promise<void> {
+  async updateBulkAvailableQuantity(updates: { productId: string; newQuantity: number }[]): Promise<void> {
     const session = await this.productModel.db.startSession();
     
     try {
       await session.withTransaction(async () => {
-        const bulkOps = updates.map(update => ({
+        const validUpdates = updates
+          .map(update => ({
+            ...update,
+            objectId: this.validateObjectId(update.productId)
+          }))
+          .filter(update => update.objectId);
+          
+        const bulkOps = validUpdates.map(update => ({
           updateOne: {
-            filter: { _id: update.productId },
+            filter: { _id: update.objectId },
             update: { 
-              stockCount: update.newStock,
-              isAvailable: update.newStock > 0
+              availableQuantity: update.newQuantity,
+              isAvailable: this.determineAvailability(update.newQuantity)
             }
           }
         }));
         
-        await this.productModel.bulkWrite(bulkOps, { session });
-        
-        // Update cache for each product
-        for (const update of updates) {
-          const cacheKey = CacheKeyGenerator.product(update.productId);
-          const product = await this.cacheService.get<Product>(cacheKey, 'product');
-          if (product) {
-            product.stockCount = update.newStock;
-            product.isAvailable = update.newStock > 0;
-            await this.cacheService.set(cacheKey, product, CACHE_CONFIG.TTL.LONG, 'product');
+        if (bulkOps.length > 0) {
+          await this.productModel.bulkWrite(bulkOps, { session });
+          
+          // Update cache for each product
+          for (const update of validUpdates) {
+            const cacheKey = CacheKeyGenerator.product(update.productId);
+            const product = await this.cacheService.get<Product>(cacheKey, 'product');
+            if (product) {
+              product.availableQuantity = update.newQuantity;
+              product.isAvailable = this.determineAvailability(update.newQuantity);
+              await this.cacheService.set(cacheKey, product, CACHE_CONFIG.TTL.LONG, 'product');
+            }
           }
         }
       });
@@ -633,8 +729,8 @@ export class ProductService {
     if (cached) return cached;
 
     const pipeline: PipelineStage[] = [
-      { $match: { isDeleted: false, stockCount: { $gt: 0 } } },
-      { $sort: { salesCount: -1, createdAt: -1 } },
+      { $match: { isDeleted: false, availableQuantity: { $gt: 0 } } },
+      { $sort: { createdAt: -1 } }, // Removed salesCount dependency
       { $limit: safeLimit },
       {
         $lookup: {
@@ -668,7 +764,7 @@ export class ProductService {
     const skip = (page - 1) * limit;
     
     const pipeline: PipelineStage[] = [
-      { $match: { isDeleted: false, stockCount: 0 } },
+      { $match: { isDeleted: false, availableQuantity: 0 } },
       { $sort: { updatedAt: -1 as -1 } },
       {
         $facet: {
@@ -722,10 +818,10 @@ export class ProductService {
       { 
         $match: { 
           isDeleted: false, 
-          stockCount: { $gt: 0, $lte: threshold } 
+          availableQuantity: { $gt: 0, $lte: threshold } 
         } 
       },
-      { $sort: { stockCount: 1, updatedAt: -1 } },
+      { $sort: { availableQuantity: 1, updatedAt: -1 } },
       { $limit: 50 }, // Reasonable limit for low stock alerts
       {
         $lookup: {
