@@ -48,10 +48,6 @@ export class Product {
 
   @Prop({ required: true, min: 0 })
   availableQuantity: number;
-  
-  @Prop({ default: 100, min: 0 }) 
-  maxOrderLimit: number;
-
 
   @Prop({ default: 0 })
   stockOutCount: number;

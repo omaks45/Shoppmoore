@@ -13,7 +13,7 @@ import {
   IsOptional,
   IsNumber,
   IsBoolean,
-  Min,
+  //Min,
 } from 'class-validator';
 
 export class CreateProductDto {
@@ -91,14 +91,6 @@ export class CreateProductDto {
   @IsNotEmpty()
   availableQuantity: number;
 
-  @ApiProperty({
-    description: 'Maximum order limit for the product',
-    example: 10,
-  })
-  @IsNumber()
-  @IsOptional()
-  @Min(0)
-  maxOrderLimit?: number;
 
   @ApiProperty({ required: false, example: true, description: 'Product availability' })
   @IsBoolean()

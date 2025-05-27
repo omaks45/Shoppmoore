@@ -3,7 +3,7 @@
 
 import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { CacheModule } from '@nestjs/cache-manager';
+import { CustomCacheModule } from '../types/cache/cache.module';
 import { APP_GUARD } from '@nestjs/core';
 
 import { ProductService } from '../products/products.service';
@@ -20,8 +20,9 @@ import { NotificationGateway } from '../notifications/notification.gateway';
       { name: 'Category', schema: CategorySchema }, 
     ]),
     CloudinaryModule,
-    CacheModule.register(),
+    CustomCacheModule, // Custom cache module for Redis
     forwardRef(() => AuthModule), //Use forwardRef to resolve circular dependency
+
   ],
   controllers: [ProductController],
   providers: [

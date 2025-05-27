@@ -233,7 +233,7 @@ export class OrderService {
     
     for (const item of cartItems) {
       const productId = item.productId._id || item.productId;
-      const validation = await this.productService.validateOrderQuantity(
+      const validation = await this.productService.validateBulkOrderQuantities(
         productId.toString(), 
         item.quantity
       );

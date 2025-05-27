@@ -1,43 +1,19 @@
 /* eslint-disable prettier/prettier */
-import { Type } from 'class-transformer';
-import { IsOptional, IsBoolean, IsNumber, IsString } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { PartialType } from '@nestjs/mapped-types';
+import { CreateCategoryDto } from './create-category.dto';
+import { ApiPropertyOptional, ApiHideProperty } from '@nestjs/swagger';
+import { IsOptional } from 'class-validator';
 
-export class UpdateCategoryDto {
+export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
   @ApiPropertyOptional({
-    example: 'Desserts',
-    description: 'Updated category name',
+    type: 'string',
+    format: 'binary',
+    required: false,
+    description: 'Updated image for the category (JPG, PNG, WebP allowed)',
   })
   @IsOptional()
-  @IsString()
-  name?: string;
+  image?: any; // multer handles file upload
 
-  @ApiPropertyOptional({
-    example: 'Cakes, brownies, and other sweets',
-    description: 'Updated category description',
-  })
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @ApiPropertyOptional({
-    example: false,
-    description: 'Set to true to feature category',
-  })
-  @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
-  isFeatured?: boolean;
-
-  @ApiPropertyOptional({
-    example: 3,
-    description: 'Updated display order for category listing',
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  setOrder?: number;
-
-  // Not included in Swagger as this is generated dynamically
-  slug?: string;
+  @ApiHideProperty()
+  slug?: string; // Dynamically generated, hidden from Swagger
 }
