@@ -344,10 +344,12 @@ export class ProductService {
    */
   async create(createDto: CreateProductDto, files: Express.Multer.File[], user: any): Promise<Product> {
     // Validate SKU uniqueness with index hint
+    /*
     const existing = await this.productModel.findOne({ SKU: createDto.SKU }).hint({ SKU: 1 });
     if (existing) {
       throw new BadRequestException('Product with SKU already exists');
     }
+    */
 
     // Validate availableQuantity
     if (createDto.availableQuantity === undefined || createDto.availableQuantity < 0) {

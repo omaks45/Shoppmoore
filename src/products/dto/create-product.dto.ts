@@ -59,14 +59,7 @@ export class CreateProductDto {
   @IsNotEmpty()
   unit: string;
 
-  @ApiProperty({
-    description: 'Stock Keeping Unit (unique identifier for the product)',
-    example: 'WM-2023-BLK',
-  })
-  @IsString()
-  @IsNotEmpty()
-  SKU: string;
-
+  
   @ApiProperty({
     description: 'Retail price of the product in numbers (no currency sign)',
     example: 5999,

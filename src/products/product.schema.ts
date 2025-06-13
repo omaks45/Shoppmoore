@@ -32,8 +32,6 @@ export class Product {
   @Prop({ required: true })
   unit: string;
 
-  @Prop({ required: true, unique: true })
-  SKU: string;
 
   @Prop({ required: true })
   price: number;

@@ -47,7 +47,6 @@ export class ProductController {
         subcategory: { type: 'string', example: 'Computer Accessories' },
         brandName: { type: 'string', example: 'Logitech' },
         unit: { type: 'string', example: 'pcs' },
-        SKU: { type: 'string', example: 'WM-2023-BLK' },
         price: { type: 'number', example: 5999 },
         description: { type: 'string', example: 'Ergonomic wireless mouse...' },
         availableQuantity: { type: 'number', example: 100 },
