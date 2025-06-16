@@ -343,21 +343,19 @@ export class ProductService {
    * Optimized create method with availableQuantity
    */
   async create(createDto: CreateProductDto, files: Express.Multer.File[], user: any): Promise<Product> {
-    // Validate SKU uniqueness with index hint
-    /*
-    const existing = await this.productModel.findOne({ SKU: createDto.SKU }).hint({ SKU: 1 });
-    if (existing) {
-      throw new BadRequestException('Product with SKU already exists');
-    }
-    */
-
-    // Validate availableQuantity
+  // Remove the commented SKU validation code entirely
+  
+  // Validate availableQuantity
     if (createDto.availableQuantity === undefined || createDto.availableQuantity < 0) {
       throw new BadRequestException('Available quantity is required and must be a non-negative number');
     }
-    
-    
-    // Parallel image uploads
+  
+  // Generate a unique SKU automatically
+    //const timestamp = Date.now();
+    //const randomSuffix = Math.random().toString(36).substring(2, 8).toUpperCase();
+    //const generatedSKU = `PRD-${timestamp}-${randomSuffix}`;
+  
+  // Parallel image uploads
     let imageUrls: string[] = [];
     if (files && files.length > 0) {
       const uploads = await Promise.all(
@@ -365,14 +363,15 @@ export class ProductService {
           this.cloudinaryService.uploadImage(file.buffer, file.originalname)
         )
       );
-      imageUrls = uploads.map(res => res.secure_url);
+    imageUrls = uploads.map(res => res.secure_url);
     }
 
-    // Convert category string to ObjectId if provided
+  // Convert category string to ObjectId if provided
     const categoryId = createDto.category ? this.validateObjectId(createDto.category.toString()) : undefined;
-    
+  
     const newProduct = new this.productModel({
       ...createDto,
+      //SKU: generatedSKU, // Add the generated SKU
       category: categoryId,
       isAvailable: true, 
       imageUrls,
@@ -387,10 +386,10 @@ export class ProductService {
 
     // Async cache operations
     this.performAsyncCacheOperations('create', user._id, savedProduct);
-    
+  
     return savedProduct;
   }
-
+     
   /**
    * Optimized findAll with predictive caching using CacheService
    */
